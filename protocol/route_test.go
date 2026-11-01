@@ -109,3 +109,10 @@ func TestConcurrentRouteUpdatesAndLookups(t *testing.T) {
 	}
 	for i := 0; i < 4; i++ { <-done }
 }
+
+func TestLookupUnmapsIPv4MappedAddress(t *testing.T) {
+	table := NewRouteTable()
+	if err := table.Add(Route{Prefix:mustPrefix(t, "192.0.2.0/24"), Peer:"v4"}); err != nil { t.Fatal(err) }
+	got, ok := table.Lookup(netip.MustParseAddr("::ffff:192.0.2.10"))
+	if !ok || got.Peer != "v4" { t.Fatalf("IPv4-mapped адрес не сопоставлен IPv4 маршруту: %#v", got) }
+}
