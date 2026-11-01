@@ -3,7 +3,6 @@ package protocol
 import (
 	"errors"
 	"fmt"
-	"net"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -19,7 +18,7 @@ func BuildPeerUAPI(peer Peer, allowedIPs []netip.Prefix) (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "public_key=%s\nreplace_allowed_ips=true\n", key)
 	if peer.Endpoint != "" {
-		if _, _, err := net.SplitHostPort(peer.Endpoint); err != nil {
+		if err := validateEndpoint(peer.Endpoint); err != nil {
 			return "", fmt.Errorf("пир %q: некорректный endpoint %q: %w", peer.Name, peer.Endpoint, err)
 		}
 		fmt.Fprintf(&b, "endpoint=%s\n", peer.Endpoint)
