@@ -52,6 +52,8 @@ type RouteConfig struct {
 type Config struct {
 	PrivateKey string `json:"private_key,omitempty"`
 	ListenPort int `json:"listen_port,omitempty"`
+	Address []string `json:"address,omitempty"`
+	MTU int `json:"mtu,omitempty"`
 	Peers []Peer `json:"peers"`
 	Routes []RouteConfig `json:"routes,omitempty"`
 	AmneziaWG *AWGParameters `json:"amneziawg,omitempty"`
@@ -71,6 +73,8 @@ func ParseConfig(data []byte) (Config, error) {
 
 // Validate проверяет уникальность пиров и корректность сетевых параметров.
 func (c Config) Validate() error {
+	if c.MTU < 0 || c.MTU > 65535 { return fmt.Errorf("MTU вне допустимого диапазона: %d", c.MTU) }
+	for _, raw := range c.Address { if _, err := netip.ParsePrefix(raw); err != nil { return fmt.Errorf("некорректный адрес интерфейса %q: %w", raw, err) } }
 	if c.ListenPort < 0 || c.ListenPort > 65535 {
 		return fmt.Errorf("порт прослушивания вне диапазона: %d", c.ListenPort)
 	}
