@@ -8,51 +8,49 @@ import (
 	"strings"
 )
 
-// AWGParameters — дополнительные параметры обфускации AmneziaWG.
-// Поля представлены строками, чтобы сохранить совместимость с форматом
-// конфигурации AmneziaWG; интерпретация и применение параметров выполняются
-// транспортным адаптером, а не таблицей маршрутов.
+// AWGParameters хранит параметры расширения AmneziaWG в форме конфигурации.
 type AWGParameters struct {
-	JC  int    `json:"jc,omitempty"`
-	JMin int   `json:"jmin,omitempty"`
-	JMax int   `json:"jmax,omitempty"`
-	S1  int    `json:"s1,omitempty"`
-	S2  int    `json:"s2,omitempty"`
-	H1  string `json:"h1,omitempty"`
-	H2  string `json:"h2,omitempty"`
-	H3  string `json:"h3,omitempty"`
-	H4  string `json:"h4,omitempty"`
-	I1  string `json:"i1,omitempty"`
-	I2  string `json:"i2,omitempty"`
-	I3  string `json:"i3,omitempty"`
-	I4  string `json:"i4,omitempty"`
-	I5  string `json:"i5,omitempty"`
+	JC int `json:"jc,omitempty"`
+	JMin int `json:"jmin,omitempty"`
+	JMax int `json:"jmax,omitempty"`
+	S1 int `json:"s1,omitempty"`
+	S2 int `json:"s2,omitempty"`
+	H1 string `json:"h1,omitempty"`
+	H2 string `json:"h2,omitempty"`
+	H3 string `json:"h3,omitempty"`
+	H4 string `json:"h4,omitempty"`
+	I1 string `json:"i1,omitempty"`
+	I2 string `json:"i2,omitempty"`
+	I3 string `json:"i3,omitempty"`
+	I4 string `json:"i4,omitempty"`
+	I5 string `json:"i5,omitempty"`
 }
 
 // Peer описывает WireGuard-пир и принадлежащие ему сети назначения.
 type Peer struct {
-	Name                string         `json:"name"`
-	PublicKey           string         `json:"public_key"`
-	Endpoint            string         `json:"endpoint,omitempty"`
-	AllowedIPs          []string       `json:"allowed_ips,omitempty"`
-	PersistentKeepalive int            `json:"persistent_keepalive,omitempty"`
-	Routes              []RouteConfig  `json:"routes,omitempty"`
-	AmneziaWG           *AWGParameters `json:"amneziawg,omitempty"`
+	Name string `json:"name"`
+	PublicKey string `json:"public_key"`
+	Endpoint string `json:"endpoint,omitempty"`
+	AllowedIPs []string `json:"allowed_ips,omitempty"`
+	PersistentKeepalive int `json:"persistent_keepalive,omitempty"`
+	Routes []RouteConfig `json:"routes,omitempty"`
+	AmneziaWG *AWGParameters `json:"amneziawg,omitempty"`
 }
 
 // RouteConfig — сериализуемая форма маршрута.
 type RouteConfig struct {
-	Prefix   string `json:"prefix"`
-	Priority int    `json:"priority,omitempty"`
+	Prefix string `json:"prefix"`
+	Priority int `json:"priority,omitempty"`
 }
 
-// Config — единая конфигурация библиотеки. Общие маршруты и маршруты,
-// вложенные в пиры, сводятся в один список при вызове Routes().
+// Config объединяет настройки интерфейса, пиров и общие маршруты.
+// Общие маршруты допустимы только при единственном пире: иначе их назначение
+// неоднозначно. Для нескольких пиров следует использовать peers[].routes.
 type Config struct {
-	PrivateKey string        `json:"private_key,omitempty"`
-	ListenPort int           `json:"listen_port,omitempty"`
-	Peers      []Peer        `json:"peers"`
-	Routes     []RouteConfig `json:"routes,omitempty"`
+	PrivateKey string `json:"private_key,omitempty"`
+	ListenPort int `json:"listen_port,omitempty"`
+	Peers []Peer `json:"peers"`
+	Routes []RouteConfig `json:"routes,omitempty"`
 }
 
 // ParseConfig разбирает JSON и проверяет структуру конфигурации.
@@ -89,8 +87,16 @@ func (c Config) Validate() error {
 				return fmt.Errorf("пир %q: некорректная AllowedIP %q: %w", peer.Name, raw, err)
 			}
 		}
+		for j, route := range peer.Routes {
+			if _, err := c.routeFromConfigForPeer(route, peer.Name); err != nil {
+				return fmt.Errorf("peers[%d].routes[%d]: %w", i, j, err)
+			}
+		}
 	}
-	for i, route := range c.allRouteConfigs() {
+	if len(c.Routes) > 0 && len(c.Peers) != 1 {
+		return errors.New("глобальный маршрут требует ровно одного пира; при нескольких пирах задавайте маршрут в peers[].routes")
+	}
+	for i, route := range c.Routes {
 		if _, err := c.routeFromConfig(route); err != nil {
 			return fmt.Errorf("routes[%d]: %w", i, err)
 		}
@@ -98,7 +104,7 @@ func (c Config) Validate() error {
 	return nil
 }
 
-// Routes объединяет глобальные маршруты и маршруты всех пиров.
+// Routes объединяет глобальные маршруты и маршруты всех пиров в единую модель.
 func (c Config) Routes() ([]Route, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
@@ -106,29 +112,15 @@ func (c Config) Routes() ([]Route, error) {
 	out := make([]Route, 0, len(c.Routes))
 	for _, peer := range c.Peers {
 		for _, route := range peer.Routes {
-			r, err := c.routeFromConfigForPeer(route, peer.Name)
-			if err != nil {
-				return nil, err
-			}
+			r, _ := c.routeFromConfigForPeer(route, peer.Name)
 			out = append(out, r)
 		}
 	}
 	for _, route := range c.Routes {
-		r, err := c.routeFromConfig(route)
-		if err != nil {
-			return nil, err
-		}
+		r, _ := c.routeFromConfig(route)
 		out = append(out, r)
 	}
 	return out, nil
-}
-
-func (c Config) allRouteConfigs() []RouteConfig {
-	out := make([]RouteConfig, 0, len(c.Routes))
-	for _, peer := range c.Peers {
-		out = append(out, peer.Routes...)
-	}
-	return append(out, c.Routes...)
 }
 
 func (c Config) routeFromConfigForPeer(cfg RouteConfig, peer string) (Route, error) {
@@ -144,10 +136,8 @@ func (c Config) routeFromConfig(cfg RouteConfig) (Route, error) {
 	if err != nil {
 		return Route{}, fmt.Errorf("некорректный префикс %q: %w", cfg.Prefix, err)
 	}
-	// Глобальный маршрут допустим только при наличии ровно одного пира:
-	// иначе адрес назначения не определяет, какому пиру принадлежит маршрут.
 	if len(c.Peers) != 1 {
-		return Route{}, errors.New("глобальный маршрут требует ровно одного пира; иначе задайте его в peers[].routes")
+		return Route{}, errors.New("глобальный маршрут требует ровно одного пира")
 	}
 	return (Route{Prefix: prefix, Peer: c.Peers[0].Name, Priority: cfg.Priority}).Normalize()
 }
