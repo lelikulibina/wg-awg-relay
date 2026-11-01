@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strconv"
 	"strings"
 )
 
@@ -84,6 +85,9 @@ func (c Config) Validate() error {
 		}
 		if awg.JMax != 0 && awg.JMin > awg.JMax {
 			return errors.New("jmin не может превышать jmax")
+		}
+		for name, value := range map[string]string{"h1": awg.H1, "h2": awg.H2, "h3": awg.H3, "h4": awg.H4} {
+			if err := validateHeaderRange(value); err != nil { return fmt.Errorf("%s: %w", name, err) }
 		}
 	}
 	peers := make(map[string]struct{}, len(c.Peers))
@@ -168,4 +172,20 @@ func (c Config) routeFromConfig(cfg RouteConfig) (Route, error) {
 		if !found { return Route{}, fmt.Errorf("общий маршрут ссылается на неизвестный пир %q", peer) }
 	}
 	return (Route{Prefix: prefix, Peer: peer, Priority: cfg.Priority}).Normalize()
+}
+
+func validateHeaderRange(raw string) error {
+	if raw == "" { return nil }
+	parts := strings.Split(raw, "-")
+	if len(parts) > 2 || len(parts) == 2 && parts[0] == "" {
+		return errors.New("ожидается число или диапазон x-y")
+	}
+	low, err := strconv.ParseUint(parts[0], 10, 32)
+	if err != nil { return fmt.Errorf("некорректное значение заголовка: %w", err) }
+	if len(parts) == 2 {
+		high, err := strconv.ParseUint(parts[1], 10, 32)
+		if err != nil { return fmt.Errorf("некорректная верхняя граница: %w", err) }
+		if low > high { return errors.New("нижняя граница диапазона больше верхней") }
+	}
+	return nil
 }
