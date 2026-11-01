@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -142,6 +143,51 @@ func (c Config) Validate() error {
 		}
 	}
 	return nil
+}
+
+
+// EffectiveRoutes возвращает итоговые AllowedIPs для устройства. Явные маршруты
+// объединяются с Peer.AllowedIPs. При совпадении префикса выбирается маршрут
+// с большим приоритетом; при равенстве — лексикографически меньший пир.
+// Разные длины префикса сохраняются, чтобы LPM работал в движке WireGuard.
+func (c Config) EffectiveRoutes() ([]Route, error) {
+	explicit, err := c.Routes()
+	if err != nil { return nil, err }
+	winners := make(map[string]Route)
+	add := func(candidate Route) {
+		key := candidate.Prefix.String()
+		current, exists := winners[key]
+		if !exists || betterTie(candidate, current) { winners[key] = candidate }
+	}
+	for _, peer := range c.Peers {
+		for _, raw := range peer.AllowedIPs {
+			prefix, _ := netip.ParsePrefix(raw)
+			normalized := prefix.Masked()
+			add(Route{Prefix: normalized, Peer: peer.Name})
+		}
+	}
+	for _, route := range explicit { add(route) }
+	out := make([]Route, 0, len(winners))
+	for _, route := range winners { out = append(out, route) }
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Prefix.Addr().Is4() != out[j].Prefix.Addr().Is4() { return out[i].Prefix.Addr().Is4() }
+		if out[i].Prefix.Bits() != out[j].Prefix.Bits() { return out[i].Prefix.Bits() > out[j].Prefix.Bits() }
+		return out[i].Prefix.String() < out[j].Prefix.String()
+	})
+	return out, nil
+}
+
+// PeerAllowedIPs возвращает полный эффективный набор AllowedIPs одного пира.
+// Его следует передавать в BuildPeerUAPI при динамическом обновлении маршрутов.
+func (c Config) PeerAllowedIPs(peerName string) ([]netip.Prefix, error) {
+	found := false
+	for _, peer := range c.Peers { if peer.Name == peerName { found = true; break } }
+	if !found { return nil, fmt.Errorf("неизвестный пир %q", peerName) }
+	routes, err := c.EffectiveRoutes()
+	if err != nil { return nil, err }
+	out := make([]netip.Prefix, 0)
+	for _, route := range routes { if route.Peer == peerName { out = append(out, route.Prefix) } }
+	return out, nil
 }
 
 // Routes объединяет глобальные маршруты и маршруты всех пиров в единую модель.
