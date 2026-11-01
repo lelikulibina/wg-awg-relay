@@ -98,3 +98,35 @@ func TestPeerEndpointRequiresNumericPort(t *testing.T) {
 	cfg := Config{Peers: []Peer{{Name:"edge", Endpoint:"vpn.example.com:abc"}}}
 	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка ненумерического порта") }
 }
+
+func TestEffectiveRoutesResolveEqualPrefixByPriority(t *testing.T) {
+	cfg := Config{Peers: []Peer{
+		{Name:"alpha", AllowedIPs:[]string{"10.0.0.0/8"}},
+		{Name:"beta", AllowedIPs:[]string{"10.0.0.0/8"}},
+	}, Routes: []RouteConfig{
+		{Prefix:"10.0.0.0/8", Peer:"beta", Priority:20},
+		{Prefix:"10.1.0.0/16", Peer:"alpha", Priority:1},
+	}}
+	routes, err := cfg.EffectiveRoutes()
+	if err != nil { t.Fatal(err) }
+	if len(routes) != 2 { t.Fatalf("ожидалось два эффективных префикса, получено %#v", routes) }
+	if routes[0].Prefix.String() != "10.1.0.0/16" || routes[0].Peer != "alpha" {
+		t.Fatalf("более специфичный маршрут потерян: %#v", routes[0])
+	}
+	if routes[1].Prefix.String() != "10.0.0.0/8" || routes[1].Peer != "beta" {
+		t.Fatalf("равный префикс не разрешён по приоритету: %#v", routes[1])
+	}
+}
+
+func TestPeerAllowedIPsReturnsCompleteEffectiveSet(t *testing.T) {
+	cfg := Config{Peers: []Peer{
+		{Name:"edge-a", AllowedIPs:[]string{"10.0.0.0/8", "2001:db8::/32"}},
+		{Name:"edge-b"},
+	}, Routes: []RouteConfig{{Prefix:"10.0.0.0/8", Peer:"edge-b", Priority:5}}}
+	got, err := cfg.PeerAllowedIPs("edge-a")
+	if err != nil { t.Fatal(err) }
+	if len(got) != 1 || got[0].String() != "2001:db8::/32" {
+		t.Fatalf("получен неполный/конфликтующий набор AllowedIPs: %#v", got)
+	}
+	if _, err := cfg.PeerAllowedIPs("missing"); err == nil { t.Fatal("ожидалась ошибка неизвестного пира") }
+}
