@@ -88,3 +88,8 @@ func TestAmneziaWGHeaderRanges(t *testing.T) {
 	cfg.AmneziaWG.H3 = "4294967296"
 	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка переполнения uint32") }
 }
+
+func TestAmneziaWGJunkRangeMustBeOrderedEvenWhenJMaxIsZero(t *testing.T) {
+	cfg := Config{Peers: []Peer{{Name:"edge"}}, AmneziaWG:&AWGParameters{JMin:1, JMax:0}}
+	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка jmin > jmax") }
+}
