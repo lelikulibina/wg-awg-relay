@@ -52,3 +52,23 @@ func TestMalformedCIDRRejected(t *testing.T) {
 	cfg := Config{Peers: []Peer{{Name:"edge", Routes:[]RouteConfig{{Prefix:"10.0.0.1/99"}}}}}
 	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка некорректного CIDR") }
 }
+
+func TestGlobalRouteCanTargetNamedPeer(t *testing.T) {
+	cfg := Config{
+		Peers: []Peer{{Name: "first"}, {Name: "second"}},
+		Routes: []RouteConfig{{Prefix: "172.16.0.0/12", Peer: "second"}},
+	}
+	routes, err := cfg.Routes()
+	if err != nil { t.Fatal(err) }
+	if len(routes) != 1 || routes[0].Peer != "second" {
+		t.Fatalf("общий маршрут назначен неверному пиру: %#v", routes)
+	}
+}
+
+func TestGlobalRouteRejectsUnknownPeer(t *testing.T) {
+	cfg := Config{
+		Peers: []Peer{{Name: "known"}},
+		Routes: []RouteConfig{{Prefix: "172.16.0.0/12", Peer: "missing"}},
+	}
+	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка ссылки на неизвестный пир") }
+}
