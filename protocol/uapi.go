@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/netip"
 	"sort"
 	"strconv"
@@ -97,7 +96,7 @@ func BuildUAPIConfig(cfg Config) (string, error) {
 		if err != nil { return "", fmt.Errorf("пир %q: public_key: %w", peer.Name, err) }
 		b.WriteString("public_key=" + key + "\n")
 		if peer.Endpoint != "" {
-			if _, _, err := net.SplitHostPort(peer.Endpoint); err != nil {
+			if err := validateEndpoint(peer.Endpoint); err != nil {
 				return "", fmt.Errorf("пир %q: некорректный endpoint %q: %w", peer.Name, peer.Endpoint, err)
 			}
 			appendUAPI(&b, "endpoint", peer.Endpoint)
