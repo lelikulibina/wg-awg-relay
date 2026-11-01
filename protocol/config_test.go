@@ -130,3 +130,10 @@ func TestPeerAllowedIPsReturnsCompleteEffectiveSet(t *testing.T) {
 	}
 	if _, err := cfg.PeerAllowedIPs("missing"); err == nil { t.Fatal("ожидалась ошибка неизвестного пира") }
 }
+
+func TestAmneziaWGHeaderRangesCannotOverlap(t *testing.T) {
+	cfg := Config{Peers: []Peer{{Name:"edge"}}, AmneziaWG:&AWGParameters{H1:"100-200", H2:"200-300"}}
+	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка пересекающихся диапазонов H1/H2") }
+	cfg.AmneziaWG.H2 = "(off)"
+	if err := cfg.Validate(); err != nil { t.Fatalf("отключённый диапазон не должен конфликтовать: %v", err) }
+}
