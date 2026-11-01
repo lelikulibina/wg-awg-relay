@@ -64,7 +64,19 @@ func BuildUAPIConfig(cfg Config) (string, error) {
 		appendUAPI(&b, "i3", awg.I3)
 		appendUAPI(&b, "i4", awg.I4)
 		appendUAPI(&b, "i5", awg.I5)
-		appendUAPI(&b, "header_protection_key", awg.HeaderProtectionKey)
+		if awg.HeaderProtectionKey != "" {
+			key, err := keyToUAPI(awg.HeaderProtectionKey)
+			if err != nil { return "", fmt.Errorf("header_protection_key: %w", err) }
+			appendUAPI(&b, "header_protection_key", key)
+		}
+		appendUAPI(&b, "content_padding_addition", awg.ContentPaddingAddition)
+		appendUAPI(&b, "rekey_after_time", awg.RekeyAfterTime)
+		appendUAPI(&b, "rekey_timeout", awg.RekeyTimeout)
+		appendUAPI(&b, "reject_after_time", awg.RejectAfterTime)
+		appendUAPI(&b, "keepalive_timeout", awg.KeepaliveTimeout)
+		appendUAPI(&b, "max_handshake_attempts", awg.MaxHandshakeAttempts)
+		if awg.RandomTrailers != nil { appendUAPI(&b, "random_trailers", boolUAPI(*awg.RandomTrailers)) }
+		if awg.DisableCookies != nil { appendUAPI(&b, "disable_cookies", boolUAPI(*awg.DisableCookies)) }
 	}
 	b.WriteString("replace_peers=true\n")
 	routes, err := cfg.Routes()
@@ -131,4 +143,9 @@ func ApplyUAPI(ctx context.Context, conn net.Conn, request string) error {
 			return fmt.Errorf("устройство отклонило UAPI-запрос: %s", line)
 		}
 	}
+}
+
+func boolUAPI(value bool) string {
+	if value { return "1" }
+	return "0"
 }
