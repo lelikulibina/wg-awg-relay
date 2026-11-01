@@ -93,3 +93,8 @@ func TestAmneziaWGJunkRangeMustBeOrderedEvenWhenJMaxIsZero(t *testing.T) {
 	cfg := Config{Peers: []Peer{{Name:"edge"}}, AmneziaWG:&AWGParameters{JMin:1, JMax:0}}
 	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка jmin > jmax") }
 }
+
+func TestPeerEndpointRequiresNumericPort(t *testing.T) {
+	cfg := Config{Peers: []Peer{{Name:"edge", Endpoint:"vpn.example.com:abc"}}}
+	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка ненумерического порта") }
+}
