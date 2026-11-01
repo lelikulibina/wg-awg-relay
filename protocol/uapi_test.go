@@ -176,3 +176,13 @@ func TestUAPIClientApplyAndGetOverUnixSocket(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	if !strings.Contains(got, "listen_port=51820") { t.Fatalf("неверный ответ UAPI get: %q", got) }
 }
+
+func TestKeyToUAPIAcceptsBase64AndHex(t *testing.T) {
+	base64Key := testKey()
+	hexKey := strings.Repeat("ab", 32)
+	for _, raw := range []string{base64Key, hexKey} {
+		got, err := keyToUAPI(raw)
+		if err != nil { t.Fatalf("ключ %q отклонён: %v", raw, err) }
+		if len(got) != 64 { t.Fatalf("ожидалось 64 hex-символа, получено %d", len(got)) }
+	}
+}
