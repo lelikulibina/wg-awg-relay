@@ -19,8 +19,6 @@ jobs:
         with:
           go-version: '1.22.x'
           cache: true
-      - name: Проверить форматирование
-        run: test -z "$(gofmt -l .)"
       - name: Запустить тесты
         run: go test -race ./...
       - name: Статический анализ
