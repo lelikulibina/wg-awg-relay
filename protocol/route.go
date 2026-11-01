@@ -151,7 +151,8 @@ func (t *RouteTable) Replace(routes []Route) error {
 		if err != nil {
 			return fmt.Errorf("ошибка маршрута %q: %w", route.Prefix, err)
 		}
-		next[routeKey(r)] = r
+		key := routeKey(r)
+		if current, exists := next[key]; !exists || r.Priority > current.Priority { next[key] = r }
 	}
 	nextByPrefix := make(map[string]map[string]Route)
 	for _, route := range next {
