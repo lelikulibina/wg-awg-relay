@@ -15,10 +15,13 @@ type AWGParameters struct {
 	JMax int `json:"jmax,omitempty"`
 	S1 int `json:"s1,omitempty"`
 	S2 int `json:"s2,omitempty"`
-	H1 int `json:"h1,omitempty"`
-	H2 int `json:"h2,omitempty"`
-	H3 int `json:"h3,omitempty"`
-	H4 int `json:"h4,omitempty"`
+	S3 int `json:"s3,omitempty"`
+	S4 int `json:"s4,omitempty"`
+	HeaderProtectionKey string `json:"header_protection_key,omitempty"`
+	H1 string `json:"h1,omitempty"`
+	H2 string `json:"h2,omitempty"`
+	H3 string `json:"h3,omitempty"`
+	H4 string `json:"h4,omitempty"`
 	I1 string `json:"i1,omitempty"`
 	I2 string `json:"i2,omitempty"`
 	I3 string `json:"i3,omitempty"`
@@ -72,8 +75,7 @@ func (c Config) Validate() error {
 		return fmt.Errorf("порт прослушивания вне диапазона: %d", c.ListenPort)
 	}
 	if awg := c.AmneziaWG; awg != nil {
-		if awg.JC < 0 || awg.JMin < 0 || awg.JMax < 0 || awg.S1 < 0 || awg.S2 < 0 ||
-			awg.H1 < 0 || awg.H2 < 0 || awg.H3 < 0 || awg.H4 < 0 {
+		if awg.JC < 0 || awg.JMin < 0 || awg.JMax < 0 || awg.S1 < 0 || awg.S2 < 0 || awg.S3 < 0 || awg.S4 < 0 {
 			return errors.New("параметры AmneziaWG не могут быть отрицательными")
 		}
 		if awg.JMax != 0 && awg.JMin > awg.JMax {
