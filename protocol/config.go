@@ -34,7 +34,6 @@ type Peer struct {
 	AllowedIPs []string `json:"allowed_ips,omitempty"`
 	PersistentKeepalive int `json:"persistent_keepalive,omitempty"`
 	Routes []RouteConfig `json:"routes,omitempty"`
-	AmneziaWG *AWGParameters `json:"amneziawg,omitempty"`
 }
 
 // RouteConfig — сериализуемая форма маршрута.
@@ -52,6 +51,7 @@ type Config struct {
 	ListenPort int `json:"listen_port,omitempty"`
 	Peers []Peer `json:"peers"`
 	Routes []RouteConfig `json:"routes,omitempty"`
+	AmneziaWG *AWGParameters `json:"amneziawg,omitempty"`
 }
 
 // ParseConfig разбирает JSON и проверяет структуру конфигурации.
