@@ -72,3 +72,10 @@ func TestGlobalRouteRejectsUnknownPeer(t *testing.T) {
 	}
 	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка ссылки на неизвестный пир") }
 }
+
+func TestAmneziaWGParametersValidation(t *testing.T) {
+	cfg := Config{Peers: []Peer{{Name: "awg", AmneziaWG: &AWGParameters{JC: 4, JMin: 80, JMax: 40}}}}
+	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка jmin > jmax") }
+	cfg.Peers[0].AmneziaWG = &AWGParameters{S1: -1}
+	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка отрицательного параметра AmneziaWG") }
+}
