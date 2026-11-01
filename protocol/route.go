@@ -37,10 +37,11 @@ func (r Route) Normalize() (Route, error) {
 type RouteTable struct {
 	mu     sync.RWMutex
 	routes map[string]Route
+	byPrefix map[string]map[string]Route
 }
 
 func NewRouteTable() *RouteTable {
-	return &RouteTable{routes: make(map[string]Route)}
+	return &RouteTable{routes: make(map[string]Route), byPrefix: make(map[string]map[string]Route)}
 }
 
 func routeKey(r Route) string {
@@ -55,7 +56,12 @@ func (t *RouteTable) Add(route Route) error {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if t.routes == nil { t.routes = make(map[string]Route) }
+	if t.byPrefix == nil { t.byPrefix = make(map[string]map[string]Route) }
 	t.routes[routeKey(r)] = r
+	prefixKey := r.Prefix.String()
+	if t.byPrefix[prefixKey] == nil { t.byPrefix[prefixKey] = make(map[string]Route) }
+	t.byPrefix[prefixKey][r.Peer] = r
 	return nil
 }
 
@@ -71,6 +77,9 @@ func (t *RouteTable) Remove(prefix netip.Prefix, peer string) bool {
 		return false
 	}
 	delete(t.routes, key)
+	prefixKey := prefix.Masked().String()
+	delete(t.byPrefix[prefixKey], peer)
+	if len(t.byPrefix[prefixKey]) == 0 { delete(t.byPrefix, prefixKey) }
 	return true
 }
 
@@ -85,17 +94,19 @@ func (t *RouteTable) Lookup(addr netip.Addr) (Route, bool) {
 	defer t.mu.RUnlock()
 
 	var best Route
-	found := false
-	for _, candidate := range t.routes {
-		if candidate.Prefix.Addr().Is4() != addr.Is4() || !candidate.Prefix.Contains(addr) {
-			continue
+	for bits := addr.BitLen(); bits >= 0; bits-- {
+		prefix := netip.PrefixFrom(addr, bits).Masked()
+		candidates := t.byPrefix[prefix.String()]
+		if len(candidates) == 0 { continue }
+		found := false
+		for _, candidate := range candidates {
+			if !found || betterTie(candidate, best) {
+				best, found = candidate, true
+			}
 		}
-		if !found || candidate.Prefix.Bits() > best.Prefix.Bits() ||
-			(candidate.Prefix.Bits() == best.Prefix.Bits() && betterTie(candidate, best)) {
-			best, found = candidate, true
-		}
+		if found { return best, true }
 	}
-	return best, found
+	return Route{}, false
 }
 
 func betterTie(a, b Route) bool {
@@ -142,8 +153,16 @@ func (t *RouteTable) Replace(routes []Route) error {
 		}
 		next[routeKey(r)] = r
 	}
+	nextByPrefix := make(map[string]map[string]Route)
+	for _, route := range next {
+		prefixKey := route.Prefix.String()
+		if nextByPrefix[prefixKey] == nil { nextByPrefix[prefixKey] = make(map[string]Route) }
+		current, exists := nextByPrefix[prefixKey][route.Peer]
+		if !exists || route.Priority > current.Priority { nextByPrefix[prefixKey][route.Peer] = route }
+	}
 	t.mu.Lock()
 	t.routes = next
+	t.byPrefix = nextByPrefix
 	t.mu.Unlock()
 	return nil
 }
