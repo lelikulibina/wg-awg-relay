@@ -116,7 +116,7 @@ func (c Config) Validate() error {
 			return fmt.Errorf("пир %q: некорректный persistent keepalive", peer.Name)
 		}
 		if peer.Endpoint != "" {
-			if _, _, err := net.SplitHostPort(peer.Endpoint); err != nil {
+			if err := validateEndpoint(peer.Endpoint); err != nil {
 				return fmt.Errorf("пир %q: некорректный endpoint %q: %w", peer.Name, peer.Endpoint, err)
 			}
 		}
@@ -205,5 +205,14 @@ func validateUintRange(raw string, bits int) error {
 		if err != nil { return fmt.Errorf("некорректная верхняя граница диапазона: %w", err) }
 		if low > high { return errors.New("нижняя граница диапазона больше верхней") }
 	}
+	return nil
+}
+
+func validateEndpoint(raw string) error {
+	host, port, err := net.SplitHostPort(raw)
+	if err != nil { return err }
+	if host == "" { return errors.New("не задан адрес узла") }
+	value, err := strconv.ParseUint(port, 10, 16)
+	if err != nil || value == 0 { return errors.New("порт должен быть числом от 1 до 65535") }
 	return nil
 }
