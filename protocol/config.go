@@ -71,6 +71,15 @@ func (c Config) Validate() error {
 	if c.ListenPort < 0 || c.ListenPort > 65535 {
 		return fmt.Errorf("порт прослушивания вне диапазона: %d", c.ListenPort)
 	}
+	if awg := c.AmneziaWG; awg != nil {
+		if awg.JC < 0 || awg.JMin < 0 || awg.JMax < 0 || awg.S1 < 0 || awg.S2 < 0 ||
+			awg.H1 < 0 || awg.H2 < 0 || awg.H3 < 0 || awg.H4 < 0 {
+			return errors.New("параметры AmneziaWG не могут быть отрицательными")
+		}
+		if awg.JMax != 0 && awg.JMin > awg.JMax {
+			return errors.New("jmin не может превышать jmax")
+		}
+	}
 	peers := make(map[string]struct{}, len(c.Peers))
 	for i, peer := range c.Peers {
 		if strings.TrimSpace(peer.Name) == "" {
@@ -83,15 +92,7 @@ func (c Config) Validate() error {
 		if peer.PersistentKeepalive < 0 || peer.PersistentKeepalive > 65535 {
 			return fmt.Errorf("пир %q: некорректный persistent keepalive", peer.Name)
 		}
-		if awg := peer.AmneziaWG; awg != nil {
-			if awg.JC < 0 || awg.JMin < 0 || awg.JMax < 0 || awg.S1 < 0 || awg.S2 < 0 ||
-				awg.H1 < 0 || awg.H2 < 0 || awg.H3 < 0 || awg.H4 < 0 {
-				return fmt.Errorf("пир %q: параметры AmneziaWG не могут быть отрицательными", peer.Name)
-			}
-			if awg.JMax != 0 && awg.JMin > awg.JMax {
-				return fmt.Errorf("пир %q: jmin не может превышать jmax", peer.Name)
-			}
-		}
+
 		for _, raw := range peer.AllowedIPs {
 			if _, err := netip.ParsePrefix(raw); err != nil {
 				return fmt.Errorf("пир %q: некорректная AllowedIP %q: %w", peer.Name, raw, err)
