@@ -80,6 +80,7 @@ func (t *RouteTable) Lookup(addr netip.Addr) (Route, bool) {
 	if !addr.IsValid() {
 		return Route{}, false
 	}
+	if addr.Is4In6() { addr = addr.Unmap() }
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
