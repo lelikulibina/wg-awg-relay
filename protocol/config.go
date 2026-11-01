@@ -270,5 +270,6 @@ func parseUintRange(raw string, bits int) (uint64, uint64, bool, error) {
 		if err != nil { return 0, 0, false, fmt.Errorf("некорректная верхняя граница диапазона: %w", err) }
 		if low > high { return 0, 0, false, errors.New("нижняя граница диапазона больше верхней") }
 	}
+	if low == 0 && high == 0 { return 0, 0, false, nil }
 	return low, high, true, nil
 }
