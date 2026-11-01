@@ -13,6 +13,7 @@ import (
 // остальных пиров устройства. allowedIPs — полный желаемый набор AllowedIPs
 // этого пира (включая маршруты), поскольку replace_allowed_ips очищает старый.
 func BuildPeerUAPI(peer Peer, allowedIPs []netip.Prefix) (string, error) {
+	if peer.PersistentKeepalive < 0 || peer.PersistentKeepalive > 65535 { return "", fmt.Errorf("пир %q: некорректный persistent keepalive", peer.Name) }
 	key, err := keyToUAPI(peer.PublicKey)
 	if err != nil { return "", fmt.Errorf("пир %q: public_key: %w", peer.Name, err) }
 	var b strings.Builder
