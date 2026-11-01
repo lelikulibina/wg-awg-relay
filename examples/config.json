@@ -11,7 +11,7 @@
       "amneziawg": {
         "jc": 4,
         "jmin": 40,
-        "jmax": ಾಟ
+        "jmax": 70
       },
       "routes": [
         { "prefix": "10.10.0.0/16", "priority": 10 },
