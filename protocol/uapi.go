@@ -79,15 +79,9 @@ func BuildUAPIConfig(cfg Config) (string, error) {
 		if awg.DisableCookies != nil { appendUAPI(&b, "disable_cookies", boolUAPI(*awg.DisableCookies)) }
 	}
 	b.WriteString("replace_peers=true\n")
-	routes, err := cfg.Routes()
+	routes, err := cfg.EffectiveRoutes()
 	if err != nil { return "", err }
 	byPeer := make(map[string][]string)
-	for _, peer := range cfg.Peers {
-		for _, raw := range peer.AllowedIPs {
-			p, _ := netip.ParsePrefix(raw)
-			byPeer[peer.Name] = append(byPeer[peer.Name], p.Masked().String())
-		}
-	}
 	for _, route := range routes { byPeer[route.Peer] = append(byPeer[route.Peer], route.Prefix.String()) }
 
 	peers := append([]Peer(nil), cfg.Peers...)
