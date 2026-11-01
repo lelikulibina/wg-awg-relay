@@ -21,12 +21,13 @@ import (
 func keyToUAPI(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" { return "", errors.New("ключ не задан") }
-	var decoded []byte
-	var err error
-	if decoded, err = base64.StdEncoding.DecodeString(raw); err != nil {
-		decoded, err = hex.DecodeString(raw)
+	decoded, base64Err := base64.StdEncoding.DecodeString(raw)
+	if base64Err != nil || len(decoded) != 32 {
+		hexDecoded, hexErr := hex.DecodeString(raw)
+		if hexErr == nil { decoded = hexDecoded } else if base64Err != nil {
+			return "", fmt.Errorf("ключ должен быть Base64 или hex: %w", base64Err)
+		}
 	}
-	if err != nil { return "", fmt.Errorf("ключ должен быть Base64 или hex: %w", err) }
 	if len(decoded) != 32 { return "", fmt.Errorf("длина ключа должна быть 32 байта, получено %d", len(decoded)) }
 	return hex.EncodeToString(decoded), nil
 }
