@@ -19,6 +19,14 @@ type AWGParameters struct {
 	S3 int `json:"s3,omitempty"`
 	S4 int `json:"s4,omitempty"`
 	HeaderProtectionKey string `json:"header_protection_key,omitempty"`
+	ContentPaddingAddition string `json:"content_padding_addition,omitempty"`
+	RekeyAfterTime string `json:"rekey_after_time,omitempty"`
+	RekeyTimeout string `json:"rekey_timeout,omitempty"`
+	RejectAfterTime string `json:"reject_after_time,omitempty"`
+	KeepaliveTimeout string `json:"keepalive_timeout,omitempty"`
+	MaxHandshakeAttempts string `json:"max_handshake_attempts,omitempty"`
+	RandomTrailers *bool `json:"random_trailers,omitempty"`
+	DisableCookies *bool `json:"disable_cookies,omitempty`
 	H1 string `json:"h1,omitempty"`
 	H2 string `json:"h2,omitempty"`
 	H3 string `json:"h3,omitempty"`
@@ -80,14 +88,18 @@ func (c Config) Validate() error {
 		return fmt.Errorf("порт прослушивания вне диапазона: %d", c.ListenPort)
 	}
 	if awg := c.AmneziaWG; awg != nil {
-		if awg.JC < 0 || awg.JMin < 0 || awg.JMax < 0 || awg.S1 < 0 || awg.S2 < 0 || awg.S3 < 0 || awg.S4 < 0 {
+		if awg.JC < 0 || awg.JC > 65535 || awg.JMin < 0 || awg.JMin > 65535 || awg.JMax < 0 || awg.JMax > 65535 || awg.S1 < 0 || awg.S1 > 65535 || awg.S2 < 0 || awg.S2 > 65535 || awg.S3 < 0 || awg.S3 > 65535 || awg.S4 < 0 || awg.S4 > 65535 {
 			return errors.New("параметры AmneziaWG не могут быть отрицательными")
 		}
+		if awg.HeaderProtectionKey != "" && (awg.S1 < 12 || awg.S2 < 12 || awg.S3 < 12 || awg.S4 < 12) { return errors.New("при HeaderProtectionKey значения S1-S4 должны быть не меньше 12") }
 		if awg.JMax != 0 && awg.JMin > awg.JMax {
 			return errors.New("jmin не может превышать jmax")
 		}
 		for _, header := range []struct{name, value string}{{"h1", awg.H1}, {"h2", awg.H2}, {"h3", awg.H3}, {"h4", awg.H4}} {
-			if err := validateHeaderRange(header.value); err != nil { return fmt.Errorf("%s: %w", header.name, err) }
+			if err := validateUintRange(header.value, 32); err != nil { return fmt.Errorf("%s: %w", header.name, err) }
+		}
+		for _, param := range []struct{name, value string}{{"content_padding_addition", awg.ContentPaddingAddition}, {"rekey_after_time", awg.RekeyAfterTime}, {"rekey_timeout", awg.RekeyTimeout}, {"reject_after_time", awg.RejectAfterTime}, {"keepalive_timeout", awg.KeepaliveTimeout}, {"max_handshake_attempts", awg.MaxHandshakeAttempts}} {
+			if err := validateUintRange(param.value, 16); err != nil { return fmt.Errorf("%s: %w", param.name, err) }
 		}
 	}
 	peers := make(map[string]struct{}, len(c.Peers))
@@ -174,17 +186,17 @@ func (c Config) routeFromConfig(cfg RouteConfig) (Route, error) {
 	return (Route{Prefix: prefix, Peer: peer, Priority: cfg.Priority}).Normalize()
 }
 
-func validateHeaderRange(raw string) error {
-	if raw == "" { return nil }
+func validateUintRange(raw string, bits int) error {
+	if raw == "" || raw == "(off)" { return nil }
 	parts := strings.Split(raw, "-")
 	if len(parts) > 2 || len(parts) == 2 && parts[0] == "" {
 		return errors.New("ожидается число или диапазон x-y")
 	}
-	low, err := strconv.ParseUint(parts[0], 10, 32)
-	if err != nil { return fmt.Errorf("некорректное значение заголовка: %w", err) }
+	low, err := strconv.ParseUint(parts[0], 10, bits)
+	if err != nil { return fmt.Errorf("некорректное числовое значение: %w", err) }
 	if len(parts) == 2 {
-		high, err := strconv.ParseUint(parts[1], 10, 32)
-		if err != nil { return fmt.Errorf("некорректная верхняя граница: %w", err) }
+		high, err := strconv.ParseUint(parts[1], 10, bits)
+		if err != nil { return fmt.Errorf("некорректная верхняя граница диапазона: %w", err) }
 		if low > high { return errors.New("нижняя граница диапазона больше верхней") }
 	}
 	return nil
