@@ -1,0 +1,27 @@
+name: Проверка Go
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Тесты и статический анализ
+    runs-on: ubuntu-latest
+    steps:
+      - name: Получить исходный код
+        uses: actions/checkout@v4
+      - name: Установить Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+          cache: true
+      - name: Проверить форматирование
+        run: test -z "$(gofmt -l .)"
+      - name: Запустить тесты
+        run: go test -race ./...
+      - name: Статический анализ
+        run: go vet ./...
