@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testKey() string { return base64.StdEncoding.EncodeToString(make([]byte, 32)) }
@@ -99,4 +100,50 @@ func TestBuildPeerRemovalUAPI(t *testing.T) {
 	got, err := BuildPeerRemovalUAPI(testKey())
 	if err != nil { t.Fatal(err) }
 	if !strings.Contains(got, "remove=true") { t.Fatalf("нет команды удаления: %s", got) }
+}
+
+func TestBuildUAPIIncludesAWG31Settings(t *testing.T) {
+	enabled, disabled := true, false
+	cfg := Config{
+		PrivateKey: testKey(),
+		AmneziaWG: &AWGParameters{
+			S1: 12, S2: 12, S3: 12, S4: 12,
+			HeaderProtectionKey: testKey(),
+			ContentPaddingAddition: "4-16",
+			RekeyAfterTime: "30-60",
+			RekeyTimeout: "(off)",
+			RejectAfterTime: "120",
+			KeepaliveTimeout: "10-20",
+			MaxHandshakeAttempts: "5",
+			RandomTrailers: &enabled,
+			DisableCookies: &disabled,
+		},
+	}
+	got, err := BuildUAPIConfig(cfg)
+	if err != nil { t.Fatal(err) }
+	for _, expected := range []string{
+		"header_protection_key=" + strings.Repeat("00", 32),
+		"content_padding_addition=4-16", "rekey_after_time=30-60",
+		"rekey_timeout=(off)", "reject_after_time=120", "keepalive_timeout=10-20",
+		"max_handshake_attempts=5", "random_trailers=1", "disable_cookies=0",
+	} {
+		if !strings.Contains(got, expected) { t.Errorf("не найдено %q в UAPI:\n%s", expected, got) }
+	}
+}
+
+func TestApplyUAPICancelledContextInterruptsIO(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- ApplyUAPI(ctx, client, "listen_port=1234\n") }()
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil { t.Fatal("ожидалась ошибка после отмены контекста") }
+	case <-time.After(time.Second):
+		t.Fatal("ApplyUAPI не прервал заблокированную операцию после отмены контекста")
+	}
 }
