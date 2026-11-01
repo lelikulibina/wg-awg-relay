@@ -26,7 +26,7 @@ type AWGParameters struct {
 	KeepaliveTimeout string `json:"keepalive_timeout,omitempty"`
 	MaxHandshakeAttempts string `json:"max_handshake_attempts,omitempty"`
 	RandomTrailers *bool `json:"random_trailers,omitempty"`
-	DisableCookies *bool `json:"disable_cookies,omitempty`
+	DisableCookies *bool `json:"disable_cookies,omitempty"`
 	H1 string `json:"h1,omitempty"`
 	H2 string `json:"h2,omitempty"`
 	H3 string `json:"h3,omitempty"`
@@ -89,7 +89,7 @@ func (c Config) Validate() error {
 	}
 	if awg := c.AmneziaWG; awg != nil {
 		if awg.JC < 0 || awg.JC > 65535 || awg.JMin < 0 || awg.JMin > 65535 || awg.JMax < 0 || awg.JMax > 65535 || awg.S1 < 0 || awg.S1 > 65535 || awg.S2 < 0 || awg.S2 > 65535 || awg.S3 < 0 || awg.S3 > 65535 || awg.S4 < 0 || awg.S4 > 65535 {
-			return errors.New("параметры AmneziaWG не могут быть отрицательными")
+			return errors.New("числовые параметры AmneziaWG должны находиться в диапазоне uint16")
 		}
 		if awg.HeaderProtectionKey != "" && (awg.S1 < 12 || awg.S2 < 12 || awg.S3 < 12 || awg.S4 < 12) { return errors.New("при HeaderProtectionKey значения S1-S4 должны быть не меньше 12") }
 		if awg.JMax != 0 && awg.JMin > awg.JMax {
