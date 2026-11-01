@@ -34,6 +34,7 @@ type Peer struct {
 	AllowedIPs []string `json:"allowed_ips,omitempty"`
 	PersistentKeepalive int `json:"persistent_keepalive,omitempty"`
 	Routes []RouteConfig `json:"routes,omitempty"`
+	AmneziaWG *AWGParameters `json:"amneziawg,omitempty"`
 }
 
 // RouteConfig — сериализуемая форма маршрута.
