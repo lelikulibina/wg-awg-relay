@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -92,7 +93,7 @@ func (c Config) Validate() error {
 			return errors.New("числовые параметры AmneziaWG должны находиться в диапазоне uint16")
 		}
 		if awg.HeaderProtectionKey != "" && (awg.S1 < 12 || awg.S2 < 12 || awg.S3 < 12 || awg.S4 < 12) { return errors.New("при HeaderProtectionKey значения S1-S4 должны быть не меньше 12") }
-		if awg.JMax != 0 && awg.JMin > awg.JMax {
+		if awg.JMin > awg.JMax {
 			return errors.New("jmin не может превышать jmax")
 		}
 		for _, header := range []struct{name, value string}{{"h1", awg.H1}, {"h2", awg.H2}, {"h3", awg.H3}, {"h4", awg.H4}} {
@@ -104,7 +105,7 @@ func (c Config) Validate() error {
 	}
 	peers := make(map[string]struct{}, len(c.Peers))
 	for i, peer := range c.Peers {
-		if strings.TrimSpace(peer.Name) == "" {
+		if strings.TrimSpace(peer.Name) == "" || peer.Name != strings.TrimSpace(peer.Name) {
 			return fmt.Errorf("peers[%d]: не задано имя пира", i)
 		}
 		if _, exists := peers[peer.Name]; exists {
@@ -113,6 +114,11 @@ func (c Config) Validate() error {
 		peers[peer.Name] = struct{}{}
 		if peer.PersistentKeepalive < 0 || peer.PersistentKeepalive > 65535 {
 			return fmt.Errorf("пир %q: некорректный persistent keepalive", peer.Name)
+		}
+		if peer.Endpoint != "" {
+			if _, _, err := net.SplitHostPort(peer.Endpoint); err != nil {
+				return fmt.Errorf("пир %q: некорректный endpoint %q: %w", peer.Name, peer.Endpoint, err)
+			}
 		}
 
 		for _, raw := range peer.AllowedIPs {
