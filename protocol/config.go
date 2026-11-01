@@ -44,8 +44,8 @@ type RouteConfig struct {
 }
 
 // Config объединяет настройки интерфейса, пиров и общие маршруты.
-// Общие маршруты допустимы только при единственном пире: иначе их назначение
-// неоднозначно. Для нескольких пиров следует использовать peers[].routes.
+// Общие маршруты могут указывать поле peer. Если пир ровно один, его имя
+// подставляется автоматически; при нескольких пирах поле peer обязательно.
 type Config struct {
 	PrivateKey string `json:"private_key,omitempty"`
 	ListenPort int `json:"listen_port,omitempty"`
@@ -136,8 +136,18 @@ func (c Config) routeFromConfig(cfg RouteConfig) (Route, error) {
 	if err != nil {
 		return Route{}, fmt.Errorf("некорректный префикс %q: %w", cfg.Prefix, err)
 	}
-	if len(c.Peers) != 1 {
-		return Route{}, errors.New("глобальный маршрут требует ровно одного пира")
+	peer := cfg.Peer
+	if peer == "" {
+		if len(c.Peers) != 1 {
+			return Route{}, errors.New("для общего маршрута укажите поле peer; автоматическое назначение возможно только при одном пире")
+		}
+		peer = c.Peers[0].Name
+	} else {
+		found := false
+		for _, candidate := range c.Peers {
+			if candidate.Name == peer { found = true; break }
+		}
+		if !found { return Route{}, fmt.Errorf("общий маршрут ссылается на неизвестный пир %q", peer) }
 	}
-	return (Route{Prefix: prefix, Peer: c.Peers[0].Name, Priority: cfg.Priority}).Normalize()
+	return (Route{Prefix: prefix, Peer: peer, Priority: cfg.Priority}).Normalize()
 }
