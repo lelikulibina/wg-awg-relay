@@ -33,6 +33,9 @@ func (c UAPIClient) Get(ctx context.Context) (string, error) {
 	conn, err := c.Dialer.DialContext(ctx, "unix", c.SocketPath)
 	if err != nil { return "", fmt.Errorf("не удалось подключиться к UAPI-сокету %q: %w", c.SocketPath, err) }
 	defer conn.Close()
+	if err := ctx.Err(); err != nil { return "", err }
+	stopCancel := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })
+	defer stopCancel()
 	if err := conn.SetDeadline(deadlineFromContext(ctx)); err != nil { return "", err }
 	if _, err := conn.Write([]byte("get=1\n\n")); err != nil { return "", fmt.Errorf("ошибка отправки UAPI get: %w", err) }
 	var b strings.Builder
@@ -40,7 +43,9 @@ func (c UAPIClient) Get(ctx context.Context) (string, error) {
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil { return "", fmt.Errorf("ошибка чтения UAPI get: %w", err) }
-		if strings.TrimRight(line, "\r\n") == "" { break }
+		trimmed := strings.TrimRight(line, "\r\n")
+		if trimmed == "" || trimmed == "errno=0" { break }
+		if strings.HasPrefix(trimmed, "errno=") { return "", fmt.Errorf("устройство отклонило UAPI get: %s", trimmed) }
 		b.WriteString(line)
 	}
 	return b.String(), nil
