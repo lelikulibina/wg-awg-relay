@@ -15,10 +15,10 @@ type AWGParameters struct {
 	JMax int `json:"jmax,omitempty"`
 	S1 int `json:"s1,omitempty"`
 	S2 int `json:"s2,omitempty"`
-	H1 string `json:"h1,omitempty"`
-	H2 string `json:"h2,omitempty"`
-	H3 string `json:"h3,omitempty"`
-	H4 string `json:"h4,omitempty"`
+	H1 int `json:"h1,omitempty"`
+	H2 int `json:"h2,omitempty"`
+	H3 int `json:"h3,omitempty"`
+	H4 int `json:"h4,omitempty"`
 	I1 string `json:"i1,omitempty"`
 	I2 string `json:"i2,omitempty"`
 	I3 string `json:"i3,omitempty"`
@@ -82,6 +82,15 @@ func (c Config) Validate() error {
 		peers[peer.Name] = struct{}{}
 		if peer.PersistentKeepalive < 0 || peer.PersistentKeepalive > 65535 {
 			return fmt.Errorf("пир %q: некорректный persistent keepalive", peer.Name)
+		}
+		if awg := peer.AmneziaWG; awg != nil {
+			if awg.JC < 0 || awg.JMin < 0 || awg.JMax < 0 || awg.S1 < 0 || awg.S2 < 0 ||
+				awg.H1 < 0 || awg.H2 < 0 || awg.H3 < 0 || awg.H4 < 0 {
+				return fmt.Errorf("пир %q: параметры AmneziaWG не могут быть отрицательными", peer.Name)
+			}
+			if awg.JMax != 0 && awg.JMin > awg.JMax {
+				return fmt.Errorf("пир %q: jmin не может превышать jmax", peer.Name)
+			}
 		}
 		for _, raw := range peer.AllowedIPs {
 			if _, err := netip.ParsePrefix(raw); err != nil {
