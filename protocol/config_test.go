@@ -26,7 +26,7 @@ func TestGlobalRoutesRejectedWithMultiplePeers(t *testing.T) {
 		Routes: []RouteConfig{{Prefix:"0.0.0.0/0"}},
 	}
 	err := cfg.Validate()
-	if err == nil || !strings.Contains(err.Error(), "ровно одного пира") {
+	if err == nil || !strings.Contains(err.Error(), "укажите поле peer") {
 		t.Fatalf("ожидалась понятная ошибка неоднозначного глобального маршрута, получено %v", err)
 	}
 }
