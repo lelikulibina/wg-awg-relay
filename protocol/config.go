@@ -40,6 +40,7 @@ type Peer struct {
 // RouteConfig — сериализуемая форма маршрута.
 type RouteConfig struct {
 	Prefix string `json:"prefix"`
+	Peer string `json:"peer,omitempty"`
 	Priority int `json:"priority,omitempty"`
 }
 
@@ -93,9 +94,7 @@ func (c Config) Validate() error {
 			}
 		}
 	}
-	if len(c.Routes) > 0 && len(c.Peers) != 1 {
-		return errors.New("глобальный маршрут требует ровно одного пира; при нескольких пирах задавайте маршрут в peers[].routes")
-	}
+	
 	for i, route := range c.Routes {
 		if _, err := c.routeFromConfig(route); err != nil {
 			return fmt.Errorf("routes[%d]: %w", i, err)
