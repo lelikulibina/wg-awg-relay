@@ -79,3 +79,12 @@ func TestAmneziaWGParametersValidation(t *testing.T) {
 	cfg.AmneziaWG = &AWGParameters{S1: -1}
 	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка отрицательного параметра AmneziaWG") }
 }
+
+func TestAmneziaWGHeaderRanges(t *testing.T) {
+	cfg := Config{Peers: []Peer{{Name:"edge"}}, AmneziaWG:&AWGParameters{H1:"10-20", H2:"42"}}
+	if err := cfg.Validate(); err != nil { t.Fatalf("корректные диапазоны отклонены: %v", err) }
+	cfg.AmneziaWG.H3 = "20-10"
+	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка перевёрнутого диапазона") }
+	cfg.AmneziaWG.H3 = "4294967296"
+	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка переполнения uint32") }
+}
