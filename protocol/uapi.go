@@ -112,6 +112,9 @@ func uniqueSorted(values []string) []string {
 // до завершающей пустой строки. Соединение остаётся под управлением вызывающего кода.
 func ApplyUAPI(ctx context.Context, conn net.Conn, request string) error {
 	if conn == nil { return errors.New("UAPI-соединение не задано") }
+	if err := ctx.Err(); err != nil { return err }
+	stopCancel := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })
+	defer stopCancel()
 	deadline, ok := ctx.Deadline()
 	if ok {
 		if err := conn.SetDeadline(deadline); err != nil { return err }
