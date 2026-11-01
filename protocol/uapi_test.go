@@ -186,3 +186,24 @@ func TestKeyToUAPIAcceptsBase64AndHex(t *testing.T) {
 		if len(got) != 64 { t.Fatalf("ожидалось 64 hex-символа, получено %d", len(got)) }
 	}
 }
+
+func TestBuildUAPIConfigSendsOnlyWinningPeerForEqualPrefix(t *testing.T) {
+	keyA, keyB := strings.Repeat("00", 32), strings.Repeat("11", 32)
+	cfg := Config{
+		Peers: []Peer{
+			{Name:"alpha", PublicKey:keyA, AllowedIPs:[]string{"10.0.0.0/8"}},
+			{Name:"beta", PublicKey:keyB, AllowedIPs:[]string{"10.0.0.0/8"}},
+		},
+		Routes: []RouteConfig{{Prefix:"10.0.0.0/8", Peer:"beta", Priority:10}},
+	}
+	got, err := BuildUAPIConfig(cfg)
+	if err != nil { t.Fatal(err) }
+	sections := strings.Split(got, "public_key=")
+	if len(sections) != 3 { t.Fatalf("ожидалось два блока пиров, получено %d: %s", len(sections)-1, got) }
+	if strings.Contains(sections[1], "allowed_ip=10.0.0.0/8") {
+		t.Fatal("конфликтующий AllowedIP остался назначен alpha")
+	}
+	if !strings.Contains(sections[2], "allowed_ip=10.0.0.0/8") {
+		t.Fatal("победивший маршрут не назначен beta")
+	}
+}
