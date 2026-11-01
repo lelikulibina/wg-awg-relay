@@ -99,6 +99,9 @@ func (c Config) Validate() error {
 			}
 		}
 		for j, route := range peer.Routes {
+			if route.Peer != "" && route.Peer != peer.Name {
+				return fmt.Errorf("peers[%d].routes[%d]: маршрут вложенного пира не может ссылаться на %q", i, j, route.Peer)
+			}
 			if _, err := c.routeFromConfigForPeer(route, peer.Name); err != nil {
 				return fmt.Errorf("peers[%d].routes[%d]: %w", i, j, err)
 			}
