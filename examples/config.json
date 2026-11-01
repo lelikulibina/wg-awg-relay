@@ -1,0 +1,34 @@
+{
+  "private_key": "REPLACE_WITH_INTERFACE_PRIVATE_KEY",
+  "listen_port": 51820,
+  "peers": [
+    {
+      "name": "uplink-a",
+      "public_key": "REPLACE_WITH_PEER_PUBLIC_KEY",
+      "endpoint": "198.51.100.10:51820",
+      "persistent_keepalive": 25,
+      "allowed_ips": ["0.0.0.0/0", "::/0"],
+      "amneziawg": {
+        "jc": 4,
+        "jmin": 40,
+        "jmax": ಾಟ
+      },
+      "routes": [
+        { "prefix": "10.10.0.0/16", "priority": 10 },
+        { "prefix": "10.20.0.0/16", "priority": 10 },
+        { "prefix": "2001:db8:100::/48", "priority": 10 }
+      ]
+    },
+    {
+      "name": "uplink-b",
+      "public_key": "REPLACE_WITH_SECOND_PEER_PUBLIC_KEY",
+      "routes": [
+        { "prefix": "10.10.0.0/16", "priority": 20 }
+      ]
+    }
+  ],
+  "routes": [
+    { "prefix": "172.16.0.0/12", "peer": "uplink-a", "priority": 5 },
+    { "prefix": "2001:db8:200::/48", "peer": "uplink-b", "priority": 5 }
+  ]
+}
