@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"net"
+	"net/netip"
 	"strings"
 	"testing"
 )
@@ -79,4 +80,23 @@ func TestApplyUAPIReportsDeviceError(t *testing.T) {
 	if err := ApplyUAPI(context.Background(), client, "listen_port=1234\n"); err == nil {
 		t.Fatal("ожидалась ошибка UAPI")
 	}
+}
+
+func TestBuildPeerUAPIReplacesOnlySelectedPeersAllowedIPs(t *testing.T) {
+	peer := Peer{Name: "edge", PublicKey: testKey(), Endpoint: "192.0.2.1:51820", PersistentKeepalive: 25}
+	got, err := BuildPeerUAPI(peer, []netip.Prefix{
+		netip.MustParsePrefix("10.0.0.1/24"),
+		netip.MustParsePrefix("2001:db8::/32"),
+	})
+	if err != nil { t.Fatal(err) }
+	for _, expected := range []string{"replace_allowed_ips=true", "persistent_keepalive_interval=25", "allowed_ip=10.0.0.0/24", "allowed_ip=2001:db8::/32"} {
+		if !strings.Contains(got, expected) { t.Errorf("не найдено %q в %s", expected, got) }
+	}
+	if strings.Contains(got, "replace_peers=true") { t.Fatal("точечное обновление не должно заменять всех пиров") }
+}
+
+func TestBuildPeerRemovalUAPI(t *testing.T) {
+	got, err := BuildPeerRemovalUAPI(testKey())
+	if err != nil { t.Fatal(err) }
+	if !strings.Contains(got, "remove=true") { t.Fatalf("нет команды удаления: %s", got) }
 }
