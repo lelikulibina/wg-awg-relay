@@ -97,8 +97,21 @@ func (c Config) Validate() error {
 		if awg.JMin > awg.JMax {
 			return errors.New("jmin не может превышать jmax")
 		}
-		for _, header := range []struct{name, value string}{{"h1", awg.H1}, {"h2", awg.H2}, {"h3", awg.H3}, {"h4", awg.H4}} {
-			if err := validateUintRange(header.value, 32); err != nil { return fmt.Errorf("%s: %w", header.name, err) }
+		headers := []struct{name, value string}{{"h1", awg.H1}, {"h2", awg.H2}, {"h3", awg.H3}, {"h4", awg.H4}}
+		type headerRange struct { name string; low, high uint64; enabled bool }
+		parsedHeaders := make([]headerRange, 0, len(headers))
+		for _, header := range headers {
+			low, high, enabled, err := parseUintRange(header.value, 32)
+			if err != nil { return fmt.Errorf("%s: %w", header.name, err) }
+			if enabled { parsedHeaders = append(parsedHeaders, headerRange{name:header.name, low:low, high:high, enabled:true}) }
+		}
+		for i := range parsedHeaders {
+			for j := i + 1; j < len(parsedHeaders); j++ {
+				a, b := parsedHeaders[i], parsedHeaders[j]
+				if a.low <= b.high && b.low <= a.high {
+					return fmt.Errorf("диапазоны %s и %s пересекаются", a.name, b.name)
+				}
+			}
 		}
 		for _, param := range []struct{name, value string}{{"content_padding_addition", awg.ContentPaddingAddition}, {"rekey_after_time", awg.RekeyAfterTime}, {"rekey_timeout", awg.RekeyTimeout}, {"reject_after_time", awg.RejectAfterTime}, {"keepalive_timeout", awg.KeepaliveTimeout}, {"max_handshake_attempts", awg.MaxHandshakeAttempts}} {
 			if err := validateUintRange(param.value, 16); err != nil { return fmt.Errorf("%s: %w", param.name, err) }
@@ -239,26 +252,23 @@ func (c Config) routeFromConfig(cfg RouteConfig) (Route, error) {
 }
 
 func validateUintRange(raw string, bits int) error {
-	if raw == "" || raw == "(off)" { return nil }
-	parts := strings.Split(raw, "-")
-	if len(parts) > 2 || len(parts) == 2 && parts[0] == "" {
-		return errors.New("ожидается число или диапазон x-y")
-	}
-	low, err := strconv.ParseUint(parts[0], 10, bits)
-	if err != nil { return fmt.Errorf("некорректное числовое значение: %w", err) }
-	if len(parts) == 2 {
-		high, err := strconv.ParseUint(parts[1], 10, bits)
-		if err != nil { return fmt.Errorf("некорректная верхняя граница диапазона: %w", err) }
-		if low > high { return errors.New("нижняя граница диапазона больше верхней") }
-	}
-	return nil
+	_, _, _, err := parseUintRange(raw, bits)
+	return err
 }
 
-func validateEndpoint(raw string) error {
-	host, port, err := net.SplitHostPort(raw)
-	if err != nil { return err }
-	if host == "" { return errors.New("не задан адрес узла") }
-	value, err := strconv.ParseUint(port, 10, 16)
-	if err != nil || value == 0 { return errors.New("порт должен быть числом от 1 до 65535") }
-	return nil
+func parseUintRange(raw string, bits int) (uint64, uint64, bool, error) {
+	if raw == "" || raw == "(off)" { return 0, 0, false, nil }
+	parts := strings.Split(raw, "-")
+	if len(parts) > 2 || len(parts) == 2 && parts[0] == "" {
+		return 0, 0, false, errors.New("ожидается число или диапазон x-y")
+	}
+	low, err := strconv.ParseUint(parts[0], 10, bits)
+	if err != nil { return 0, 0, false, fmt.Errorf("некорректное числовое значение: %w", err) }
+	high := low
+	if len(parts) == 2 {
+		high, err = strconv.ParseUint(parts[1], 10, bits)
+		if err != nil { return 0, 0, false, fmt.Errorf("некорректная верхняя граница диапазона: %w", err) }
+		if low > high { return 0, 0, false, errors.New("нижняя граница диапазона больше верхней") }
+	}
+	return low, high, true, nil
 }
