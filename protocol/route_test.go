@@ -70,3 +70,42 @@ func TestEqualPriorityTieIsDeterministic(t *testing.T) {
 	got, ok := table.Lookup(netip.MustParseAddr("100.64.1.1"))
 	if !ok || got.Peer != "a" { t.Fatalf("ожидался стабильный выбор пира a, получено %#v", got) }
 }
+
+func FuzzLookupReturnsOnlyContainingPrefix(f *testing.F) {
+	f.Add("10.0.0.0/8", "10.1.2.3")
+	f.Add("2001:db8::/32", "2001:db8::1")
+	f.Add("192.0.2.0/24", "198.51.100.1")
+	f.Fuzz(func(t *testing.T, rawPrefix, rawAddr string) {
+		prefix, err := netip.ParsePrefix(rawPrefix)
+		if err != nil { t.Skip() }
+		addr, err := netip.ParseAddr(rawAddr)
+		if err != nil { t.Skip() }
+		table := NewRouteTable()
+		if err := table.Add(Route{Prefix: prefix, Peer: "fuzz"}); err != nil { t.Fatal(err) }
+		got, ok := table.Lookup(addr)
+		if ok && (!got.Prefix.Contains(addr) || got.Peer != "fuzz") {
+			t.Fatalf("Lookup вернул маршрут, не содержащий адрес: %v для %v", got, addr)
+		}
+		if prefix.Addr().Is4() != addr.Is4() && ok {
+			t.Fatalf("смешаны семейства адресов: %v для %v", got, addr)
+		}
+	})
+}
+
+func TestConcurrentRouteUpdatesAndLookups(t *testing.T) {
+	table := NewRouteTable()
+	prefix := mustPrefix(t, "10.20.0.0/16")
+	done := make(chan struct{})
+	for i := 0; i < 4; i++ {
+		go func(id int) {
+			for j := 0; j < 200; j++ {
+				_ = table.Add(Route{Prefix: prefix, Peer: "peer", Priority: id})
+				table.Lookup(netip.MustParseAddr("10.20.1.1"))
+				table.Snapshot()
+				table.Remove(prefix, "peer")
+			}
+			done <- struct{}{}
+		}(i)
+	}
+	for i := 0; i < 4; i++ { <-done }
+}
