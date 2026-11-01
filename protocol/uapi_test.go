@@ -1,10 +1,12 @@
 package protocol
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
 	"net"
 	"net/netip"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -146,4 +148,31 @@ func TestApplyUAPICancelledContextInterruptsIO(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("ApplyUAPI не прервал заблокированную операцию после отмены контекста")
 	}
+}
+
+func TestUAPIClientApplyAndGetOverUnixSocket(t *testing.T) {
+	socket := filepath.Join(t.TempDir(), "awg.sock")
+	listener, err := net.Listen("unix", socket)
+	if err != nil { t.Fatal(err) }
+	defer listener.Close()
+	go func() {
+		for i := 0; i < 2; i++ {
+			conn, err := listener.Accept()
+			if err != nil { return }
+			reader := bufio.NewReader(conn)
+			first, _ := reader.ReadString('\n')
+			if strings.TrimSpace(first) == "get=1" {
+				_, _ = conn.Write([]byte("listen_port=51820\nerrno=0\n\n"))
+			} else {
+				_, _ = reader.ReadString('\n')
+				_, _ = conn.Write([]byte("errno=0\n\n"))
+			}
+			conn.Close()
+		}
+	}()
+	client := UAPIClient{SocketPath: socket}
+	if err := client.Apply(context.Background(), "listen_port=51820\n"); err != nil { t.Fatal(err) }
+	got, err := client.Get(context.Background())
+	if err != nil { t.Fatal(err) }
+	if !strings.Contains(got, "listen_port=51820") { t.Fatalf("неверный ответ UAPI get: %q", got) }
 }
