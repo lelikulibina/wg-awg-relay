@@ -86,8 +86,8 @@ func (c Config) Validate() error {
 		if awg.JMax != 0 && awg.JMin > awg.JMax {
 			return errors.New("jmin не может превышать jmax")
 		}
-		for name, value := range map[string]string{"h1": awg.H1, "h2": awg.H2, "h3": awg.H3, "h4": awg.H4} {
-			if err := validateHeaderRange(value); err != nil { return fmt.Errorf("%s: %w", name, err) }
+		for _, header := range []struct{name, value string}{{"h1", awg.H1}, {"h2", awg.H2}, {"h3", awg.H3}, {"h4", awg.H4}} {
+			if err := validateHeaderRange(header.value); err != nil { return fmt.Errorf("%s: %w", header.name, err) }
 		}
 	}
 	peers := make(map[string]struct{}, len(c.Peers))
