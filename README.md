@@ -30,6 +30,8 @@
 
 - `ParseConfig` / `Config.Validate` — разбор и проверка JSON-конфигурации;
 - `Config.Routes` — сведение маршрутов из `peers[].routes` и общего `routes` к единому типу;
+- `Config.EffectiveRoutes` — объединение маршрутов с `AllowedIPs` и разрешение конфликтов одинаковых префиксов по приоритету;
+- `Config.PeerAllowedIPs` — полный эффективный набор сетей конкретного пира для безопасного обновления через UAPI;
 - `RouteTable.Add`, `Remove`, `Replace` — динамическое изменение таблицы;
 - `RouteTable.Lookup` — выбор пира для IPv4- или IPv6-адреса по LPM;
 - `RouteTable.Snapshot` — стабильный снимок таблицы для диагностики и синхронизации.
