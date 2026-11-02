@@ -63,6 +63,7 @@ type RouteConfig struct {
 type Config struct {
 	PrivateKey string `json:"private_key,omitempty"`
 	ListenPort int `json:"listen_port,omitempty"`
+	FwMark uint32 `json:"fwmark,omitempty"`
 	Address []string `json:"address,omitempty"`
 	MTU int `json:"mtu,omitempty"`
 	NAT bool `json:"nat,omitempty"`
