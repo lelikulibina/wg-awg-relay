@@ -2,7 +2,6 @@ package linux
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -69,4 +68,3 @@ func (m *ForwardingManager) Enable(ctx context.Context, ipv6 bool) error {
 	return nil
 }
 
-var _ = errors.New
