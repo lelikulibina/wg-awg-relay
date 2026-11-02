@@ -65,6 +65,7 @@ type Config struct {
 	ListenPort int `json:"listen_port,omitempty"`
 	Address []string `json:"address,omitempty"`
 	MTU int `json:"mtu,omitempty"`
+	NAT bool `json:"nat,omitempty"`
 	Peers []Peer `json:"peers"`
 	Routes []RouteConfig `json:"routes,omitempty"`
 	AmneziaWG *AWGParameters `json:"amneziawg,omitempty"`
