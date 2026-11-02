@@ -11,7 +11,7 @@ func TestConfigCombinesPeerAndGlobalRoutes(t *testing.T) {
 		"routes":[{"prefix":"2001:db8::/32","priority":5}]
 	}`))
 	if err != nil { t.Fatal(err) }
-	routes, err := cfg.Routes()
+	routes, err := cfg.ConfiguredRoutes()
 	if err != nil { t.Fatal(err) }
 	if len(routes) != 2 { t.Fatalf("ожидалось два маршрута, получено %d", len(routes)) }
 	if routes[0].Prefix.String() != "10.0.0.0/24" { t.Fatalf("префикс не нормализован: %s", routes[0].Prefix) }
@@ -36,7 +36,7 @@ func TestPeerRoutesSupportMultiplePeers(t *testing.T) {
 		{Name:"one", Routes:[]RouteConfig{{Prefix:"10.0.0.0/8"}}},
 		{Name:"two", Routes:[]RouteConfig{{Prefix:"2001:db8::/32"}}},
 	}}
-	routes, err := cfg.Routes()
+	routes, err := cfg.ConfiguredRoutes()
 	if err != nil { t.Fatal(err) }
 	if len(routes) != 2 || routes[0].Peer != "one" || routes[1].Peer != "two" {
 		t.Fatalf("неверное распределение маршрутов по пирам: %#v", routes)
@@ -58,7 +58,7 @@ func TestGlobalRouteCanTargetNamedPeer(t *testing.T) {
 		Peers: []Peer{{Name: "first"}, {Name: "second"}},
 		Routes: []RouteConfig{{Prefix: "172.16.0.0/12", Peer: "second"}},
 	}
-	routes, err := cfg.Routes()
+	routes, err := cfg.ConfiguredRoutes()
 	if err != nil { t.Fatal(err) }
 	if len(routes) != 1 || routes[0].Peer != "second" {
 		t.Fatalf("общий маршрут назначен неверному пиру: %#v", routes)
