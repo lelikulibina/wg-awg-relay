@@ -147,3 +147,16 @@ func TestRouteControllerCanRemovePeerAllowedIP(t *testing.T) {
 	if strings.Contains(request, "allowed_ip=10.0.0.0/8") { t.Fatalf("AllowedIP не удалён: %s", request) }
 	if _, ok := controller.Lookup(netip.MustParseAddr("10.1.1.1")); ok { t.Fatal("удалённый AllowedIP остался в таблице") }
 }
+
+func TestSameDeviceSettingsRejectsPeerAndInterfaceChanges(t *testing.T) {
+	base := protocol.Config{PrivateKey:engineKey(), FwMark:51820, Peers:[]protocol.Peer{{Name:"edge", PublicKey:engineKey()}}}
+	routesOnly := cloneConfig(base)
+	routesOnly.Routes = []protocol.RouteConfig{{Prefix:"10.0.0.0/8", Peer:"edge"}}
+	if !sameDeviceSettings(base, routesOnly) { t.Fatal("изменение только маршрутов должно быть допустимо") }
+	removedPeer := cloneConfig(base)
+	removedPeer.Peers = nil
+	if sameDeviceSettings(base, removedPeer) { t.Fatal("удаление пира не должно проходить как динамическое изменение маршрутов") }
+	changedMTU := cloneConfig(base)
+	changedMTU.MTU = 1400
+	if sameDeviceSettings(base, changedMTU) { t.Fatal("изменение MTU требует отдельного применения") }
+}
