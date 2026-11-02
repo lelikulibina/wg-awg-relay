@@ -225,7 +225,7 @@ func (c Config) PeerAllowedIPs(peerName string) ([]netip.Prefix, error) {
 }
 
 // Routes объединяет глобальные маршруты и маршруты всех пиров в единую модель.
-func (c Config) Routes() ([]Route, error) {
+func (c Config) ConfiguredRoutes() ([]Route, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
