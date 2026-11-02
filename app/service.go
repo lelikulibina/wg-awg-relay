@@ -112,7 +112,12 @@ func (s *Service) AddRoute(ctx context.Context, route protocol.Route) error {
 		rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		rollbackErr := s.controller.ReplaceConfig(rollbackCtx, old)
-		if rollbackErr != nil { return errors.Join(fmt.Errorf("не удалось применить системные маршруты: %w", err), fmt.Errorf("не удалось откатить UAPI: %w", rollbackErr)) }
+		oldRoutes, oldRoutesErr := old.EffectiveRoutes()
+		var systemRollbackErr error
+		if oldRoutesErr == nil { systemRollbackErr = s.routes.Apply(rollbackCtx, routePrefixes(oldRoutes)) } else { systemRollbackErr = oldRoutesErr }
+		if rollbackErr != nil || systemRollbackErr != nil {
+			return errors.Join(fmt.Errorf("не удалось применить системные маршруты: %w", err), rollbackErr, systemRollbackErr)
+		}
 		return err
 	}
 	return nil
