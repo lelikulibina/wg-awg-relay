@@ -185,7 +185,7 @@ func (c Config) Validate() error {
 // с большим приоритетом; при равенстве — лексикографически меньший пир.
 // Разные длины префикса сохраняются, чтобы LPM работал в движке WireGuard.
 func (c Config) EffectiveRoutes() ([]Route, error) {
-	explicit, err := c.Routes()
+	explicit, err := c.ConfiguredRoutes()
 	if err != nil { return nil, err }
 	winners := make(map[string]Route)
 	add := func(candidate Route) {
