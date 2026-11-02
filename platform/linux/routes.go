@@ -33,6 +33,7 @@ type RouteManager struct {
 	mark uint32
 	table uint32
 	rulesReady bool
+	ownedRules map[string]bool
 }
 
 func NewRouteManager(iface string, runner Runner) (*RouteManager, error) {
@@ -46,7 +47,7 @@ func NewRouteManagerWithPolicy(iface string, mark, table uint32, runner Runner) 
 	if strings.ContainsAny(iface, "/\t\r\n ") { return nil, errors.New("недопустимое имя Linux-интерфейса") }
 	if mark == 0 || table == 0 { return nil, errors.New("fwmark и номер таблицы маршрутизации должны быть ненулевыми") }
 	if runner == nil { runner = ExecRunner{} }
-	return &RouteManager{iface:iface, runner:runner, current:make(map[string]netip.Prefix), mark:mark, table:table}, nil
+	return &RouteManager{iface:iface, runner:runner, current:make(map[string]netip.Prefix), mark:mark, table:table, ownedRules:make(map[string]bool)}, nil
 }
 
 func (m *RouteManager) Add(ctx context.Context, prefix netip.Prefix) error {
@@ -173,23 +174,31 @@ func (m *RouteManager) ensureRulesLocked(ctx context.Context) error {
 	for _, family := range []string{"-4", "-6"} {
 		args := []string{family, "rule", "add", "priority", "10000", "not", "fwmark", strconv.FormatUint(uint64(m.mark), 10), "lookup", strconv.FormatUint(uint64(m.table), 10)}
 		out, err := m.runner.Run(ctx, "ip", args...)
-		if err != nil && !strings.Contains(string(out), "File exists") {
+		if err != nil {
+			if strings.Contains(string(out), "File exists") { continue }
+			rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_ = m.removeRulesLocked(rollbackCtx)
+			cancel()
 			return fmt.Errorf("не удалось добавить policy rule (%s): %s: %w", family, strings.TrimSpace(string(out)), err)
 		}
+		m.ownedRules[family] = true
 	}
 	m.rulesReady = true
 	return nil
 }
 
 func (m *RouteManager) removeRulesLocked(ctx context.Context) error {
-	if !m.rulesReady { return nil }
+	var result error
 	for _, family := range []string{"-4", "-6"} {
+		if !m.ownedRules[family] { continue }
 		args := []string{family, "rule", "del", "priority", "10000", "not", "fwmark", strconv.FormatUint(uint64(m.mark), 10), "lookup", strconv.FormatUint(uint64(m.table), 10)}
 		out, err := m.runner.Run(ctx, "ip", args...)
 		if err != nil && !strings.Contains(string(out), "No such file") && !strings.Contains(string(out), "No such process") {
-			return fmt.Errorf("не удалось удалить policy rule (%s): %s: %w", family, strings.TrimSpace(string(out)), err)
+			result = errors.Join(result, fmt.Errorf("не удалось удалить policy rule (%s): %s: %w", family, strings.TrimSpace(string(out)), err))
+			continue
 		}
+		delete(m.ownedRules, family)
 	}
-	m.rulesReady = false
-	return nil
+	m.rulesReady = len(m.ownedRules) == 0
+	return result
 }
