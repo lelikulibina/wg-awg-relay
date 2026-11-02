@@ -106,3 +106,29 @@ func TestRouteControllerRollsBackFailedUpdate(t *testing.T) {
 	got, ok := controller.Lookup(netip.MustParseAddr("198.51.100.7"))
 	if !ok || got.Prefix.String() != "0.0.0.0/0" { t.Fatalf("локальная таблица не откатилась: %#v", got) }
 }
+
+func TestRouteOwnershipMovesToHigherPriorityPeerBeforeOldOwnerIsCleared(t *testing.T) {
+	client, requests := fakeUAPI(t, "errno=0", "errno=0", "errno=0")
+	keyA, keyB := strings.Repeat("00", 32), strings.Repeat("11", 32)
+	cfg := protocol.Config{Peers: []protocol.Peer{
+		{Name:"alpha", PublicKey:keyA, AllowedIPs:[]string{"10.0.0.0/8"}},
+		{Name:"beta", PublicKey:keyB},
+	}}
+	controller, err := NewRouteController(cfg, client)
+	if err != nil { t.Fatal(err) }
+	if err := controller.ApplyInitial(context.Background()); err != nil { t.Fatal(err) }
+	_ = <-requests
+	if err := controller.AddRoute(context.Background(), protocol.Route{
+		Prefix:netip.MustParsePrefix("10.0.0.0/8"), Peer:"beta", Priority:10,
+	}); err != nil { t.Fatal(err) }
+	first := <-requests
+	second := <-requests
+	if !strings.Contains(first, "public_key="+keyB) {
+		t.Fatalf("сначала должен получить префикс новый владелец beta: %s", first)
+	}
+	if !strings.Contains(second, "public_key="+keyA) {
+		t.Fatalf("после передачи префикса должен обновиться прежний владелец alpha: %s", second)
+	}
+	got, ok := controller.Lookup(netip.MustParseAddr("10.1.2.3"))
+	if !ok || got.Peer != "beta" { t.Fatalf("таблица не выбрала нового владельца: %#v", got) }
+}
