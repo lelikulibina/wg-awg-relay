@@ -31,7 +31,7 @@ func (m *NATManager) Enable(ctx context.Context) error {
 		}
 	}
 	if _, err := m.runner.Run(ctx, "nft", "list", "chain", "inet", m.table, "postrouting"); err != nil {
-		args := []string{"add", "chain", "inet", m.table, "postrouting", "{", "type", "nat", "hook", "postrouting", "priority", "srcnat", ";", "policy", "accept", ";", "}"}
+		args := []string{"add", "chain", "inet", m.table, "postrouting", "{", "type", "nat", "hook", "postrouting", "priority", "srcnat", ";", "}"}
 		if out, addErr := m.runner.Run(ctx, "nft", args...); addErr != nil {
 			return fmt.Errorf("не удалось создать NAT-цепочку: %s: %w", strings.TrimSpace(string(out)), addErr)
 		}
