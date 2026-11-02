@@ -296,3 +296,15 @@ func parseUintRange(raw string, bits int) (uint64, uint64, bool, error) {
 	if low == 0 && high == 0 { return 0, 0, false, nil }
 	return low, high, true, nil
 }
+
+func validateEndpoint(raw string) error {
+	if strings.ContainsAny(raw, "\\r\\n\\t ") || strings.Contains(raw, "=") {
+		return errors.New("endpoint содержит недопустимые символы")
+	}
+	host, port, err := net.SplitHostPort(raw)
+	if err != nil { return err }
+	if host == "" { return errors.New("не задан адрес узла") }
+	value, err := strconv.ParseUint(port, 10, 16)
+	if err != nil || value == 0 { return errors.New("порт должен быть числом от 1 до 65535") }
+	return nil
+}
