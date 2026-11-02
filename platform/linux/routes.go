@@ -34,6 +34,7 @@ type RouteManager struct {
 	table uint32
 	rulesReady bool
 	ownedRules map[string]bool
+	uncertain bool
 }
 
 func NewRouteManager(iface string, runner Runner) (*RouteManager, error) {
@@ -89,11 +90,19 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 	defer m.mu.Unlock()
 
 	var added, removed []netip.Prefix
+	forceReconcile := m.uncertain
 	if len(next) > 0 { if err := m.ensureRulesLocked(ctx); err != nil { return err } }
 	for _, entry := range sortedPrefixes(next) {
 		key, prefix := entry.key, entry.prefix
-		if _, exists := m.current[key]; exists { continue }
+		if _, exists := m.current[key]; exists && !forceReconcile { continue }
 		if err := m.addLocked(ctx, prefix); err != nil {
+			if forceReconcile {
+				uncertain := make(map[string]netip.Prefix, len(m.current)+len(next))
+				for oldKey, oldPrefix := range m.current { uncertain[oldKey] = oldPrefix }
+				for newKey, newPrefix := range next { uncertain[newKey] = newPrefix }
+				m.current, m.uncertain = uncertain, true
+				return fmt.Errorf("не удалось восстановить маршрут %s: %w", prefix, err)
+			}
 			rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			var rollbackErr error
@@ -106,7 +115,8 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 				uncertain := make(map[string]netip.Prefix, len(m.current)+len(added))
 				for key, oldPrefix := range m.current { uncertain[key] = oldPrefix }
 				for _, addedPrefix := range added { uncertain[addedPrefix.String()] = addedPrefix }
-				m.current = uncertain
+				uncertain[prefix.String()] = prefix
+				m.current, m.uncertain = uncertain, true
 				return errors.Join(fmt.Errorf("не удалось добавить маршрут %s: %w", prefix, err), fmt.Errorf("ошибка отката: %w", rollbackErr))
 			}
 			if len(m.current) == 0 { _ = m.removeRulesLocked(rollbackCtx) }
@@ -134,7 +144,7 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 			if rollbackErr != nil {
 				for key, oldPrefix := range m.current { next[key] = oldPrefix }
 				for _, addedPrefix := range added { next[addedPrefix.String()] = addedPrefix }
-				m.current = next
+				m.current, m.uncertain = next, true
 				return errors.Join(fmt.Errorf("не удалось удалить маршрут %s: %w", prefix, err), fmt.Errorf("ошибка отката: %w", rollbackErr))
 			}
 			return fmt.Errorf("не удалось удалить маршрут %s; исходный набор восстановлен: %w", prefix, err)
@@ -142,6 +152,7 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 		removed = append(removed, prefix)
 	}
 	m.current = next
+	m.uncertain = false
 	if len(next) == 0 { return m.removeRulesLocked(ctx) }
 	return nil
 }
