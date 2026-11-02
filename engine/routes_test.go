@@ -132,3 +132,18 @@ func TestRouteOwnershipMovesToHigherPriorityPeerBeforeOldOwnerIsCleared(t *testi
 	got, ok := controller.Lookup(netip.MustParseAddr("10.1.2.3"))
 	if !ok || got.Peer != "beta" { t.Fatalf("таблица не выбрала нового владельца: %#v", got) }
 }
+
+func TestRouteControllerCanRemovePeerAllowedIP(t *testing.T) {
+	client, requests := fakeUAPI(t, "errno=0", "errno=0")
+	cfg := protocol.Config{Peers: []protocol.Peer{{
+		Name:"uplink", PublicKey:engineKey(), AllowedIPs:[]string{"10.0.0.0/8"},
+	}}}
+	controller, err := NewRouteController(cfg, client)
+	if err != nil { t.Fatal(err) }
+	if err := controller.ApplyInitial(context.Background()); err != nil { t.Fatal(err) }
+	_ = <-requests
+	if err := controller.RemoveRoute(context.Background(), netip.MustParsePrefix("10.0.0.0/8"), "uplink"); err != nil { t.Fatal(err) }
+	request := <-requests
+	if strings.Contains(request, "allowed_ip=10.0.0.0/8") { t.Fatalf("AllowedIP не удалён: %s", request) }
+	if _, ok := controller.Lookup(netip.MustParseAddr("10.1.1.1")); ok { t.Fatal("удалённый AllowedIP остался в таблице") }
+}
