@@ -167,3 +167,9 @@ func TestConfigValidatesInterfaceAddressesAndMTU(t *testing.T) {
 	cfg.MTU = 70000
 	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка MTU") }
 }
+
+func TestPeerEndpointCannotInjectUAPILines(t *testing.T) {
+	endpoint := "vpn.example.com" + string([]byte{10}) + "private_key=bad:51820"
+	cfg := Config{Peers: []Peer{{Name:"edge", Endpoint:endpoint}}}
+	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка перевода строки в endpoint") }
+}
