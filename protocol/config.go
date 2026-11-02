@@ -1,7 +1,9 @@
 package protocol
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"errors"
 	"fmt"
 	"net"
@@ -75,8 +77,14 @@ type Config struct {
 // ParseConfig разбирает JSON и проверяет структуру конфигурации.
 func ParseConfig(data []byte) (Config, error) {
 	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&cfg); err != nil {
 		return Config{}, fmt.Errorf("не удалось разобрать конфигурацию: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil { return Config{}, errors.New("после конфигурации обнаружено лишнее JSON-значение") }
+		return Config{}, fmt.Errorf("ошибка после конфигурации: %w", err)
 	}
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
