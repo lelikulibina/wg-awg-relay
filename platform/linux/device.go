@@ -72,7 +72,7 @@ func (p *DeviceProcess) Start(ctx context.Context) error {
 		p.mu.Unlock()
 		return fmt.Errorf("не удалось проверить UAPI-сокет: %w", err)
 	}
-	cmd := exec.CommandContext(ctx, p.binary, "-f", p.iface)
+	cmd := exec.Command(p.binary, "-f", p.iface)
 	cmd.Stdout, cmd.Stderr = p.stdout, p.stderr
 	if err := cmd.Start(); err != nil {
 		p.mu.Unlock()
