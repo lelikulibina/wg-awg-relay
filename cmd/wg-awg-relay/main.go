@@ -98,12 +98,22 @@ func run(args []string) error {
 	go func(){ controlErr <- controlServer.Serve(runCtx) }()
 	fmt.Fprintf(os.Stderr, "Релей запущен на интерфейсе %s. Управляющий сокет: %s. Для остановки нажмите Ctrl+C.\n", *iface, *controlSocket)
 	var controlFailure error
+	controlExited := false
 	select {
 	case <-ctx.Done():
 	case err := <-controlErr:
 		controlFailure = err
+		controlExited = true
 	}
 	cancelRun()
+	if !controlExited {
+		select {
+		case err := <-controlErr:
+			if err != nil { controlFailure = err }
+		case <-time.After(6*time.Second):
+			controlFailure = errors.New("управляющий сервер не завершился вовремя")
+		}
+	}
 	stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer stopCancel()
 	stopErr := service.Stop(stopCtx)
