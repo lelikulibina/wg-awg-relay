@@ -106,3 +106,18 @@ func TestRouteManagerDoesNotDeletePreexistingPolicyRule(t *testing.T) {
 		if strings.Contains(joined, "ip -4 rule del") { t.Fatal("менеджер удалил policy rule, который существовал до его запуска") }
 	}
 }
+
+func TestRouteManagerTracksRoutesWhenRollbackFails(t *testing.T) {
+	runner := &fakeRunner{failAt:5}
+	manager, err := NewRouteManager("awg0", runner)
+	if err != nil { t.Fatal(err) }
+	err = manager.Apply(context.Background(), []netip.Prefix{
+		netip.MustParsePrefix("10.0.0.0/8"),
+		netip.MustParsePrefix("2001:db8::/32"),
+	})
+	if err == nil { t.Fatal("ожидалась ошибка основного применения и отката") }
+	if len(manager.Snapshot()) != 1 { t.Fatalf("менеджер должен сохранить неопределённый маршрут для очистки: %#v", manager.Snapshot()) }
+	runner.failAt = 0
+	if err := manager.Apply(context.Background(), nil); err != nil { t.Fatal(err) }
+	if len(manager.Snapshot()) != 0 { t.Fatal("повторная очистка не удалила маршрут") }
+}
