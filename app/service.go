@@ -36,6 +36,7 @@ type Service struct {
 
 func New(cfg protocol.Config, options Options) (*Service, error) {
 	if err := cfg.Validate(); err != nil { return nil, err }
+	if cfg.FwMark == 0 { cfg.FwMark = 51820 }
 	if options.BinaryPath == "" { options.BinaryPath = "amneziawg-go" }
 	if options.InterfaceName == "" { options.InterfaceName = "awg0" }
 	process, err := linux.NewDeviceProcess(options.BinaryPath, options.InterfaceName, options.SocketPath)
@@ -45,7 +46,7 @@ func New(cfg protocol.Config, options Options) (*Service, error) {
 	if err != nil { return nil, err }
 	link, err := linux.NewLinkManager(options.InterfaceName, options.Runner)
 	if err != nil { return nil, err }
-	routes, err := linux.NewRouteManager(options.InterfaceName, options.Runner)
+	routes, err := linux.NewRouteManagerWithPolicy(options.InterfaceName, cfg.FwMark, cfg.FwMark, options.Runner)
 	if err != nil { return nil, err }
 	nat, err := linux.NewNATManager(options.InterfaceName, options.Runner)
 	if err != nil { return nil, err }
@@ -68,12 +69,13 @@ func (s *Service) Start(ctx context.Context) error {
 		if stopErr := s.process.Stop(stopCtx); stopErr != nil { return errors.Join(cause, stopErr) }
 		return cause
 	}
-	if err := s.link.Configure(ctx, s.config.Address, s.config.MTU); err != nil { return cleanup(err) }
-	effective, err := s.config.EffectiveRoutes()
+	desired := s.controller.Config()
+	if err := s.link.Configure(ctx, desired.Address, desired.MTU); err != nil { return cleanup(err) }
+	effective, err := desired.EffectiveRoutes()
 	if err != nil { return cleanup(err) }
 	ipv6 := hasIPv6(s.config.Address, effective)
 	if err := s.forwarding.Enable(ctx, ipv6); err != nil { return cleanup(err) }
-	if s.config.NAT {
+	if desired.NAT {
 		if err := s.nat.Enable(ctx); err != nil { return cleanup(err) }
 	}
 	if err := s.controller.ApplyInitial(ctx); err != nil { return cleanup(err) }
@@ -106,7 +108,9 @@ func (s *Service) AddRoute(ctx context.Context, route protocol.Route) error {
 	effective, err := next.EffectiveRoutes()
 	if err == nil { err = s.routes.Apply(ctx, routePrefixes(effective)) }
 	if err != nil {
-		rollbackErr := s.controller.ReplaceConfig(context.Background(), old)
+		rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		rollbackErr := s.controller.ReplaceConfig(rollbackCtx, old)
 		if rollbackErr != nil { return errors.Join(fmt.Errorf("не удалось применить системные маршруты: %w", err), fmt.Errorf("не удалось откатить UAPI: %w", rollbackErr)) }
 		return err
 	}
