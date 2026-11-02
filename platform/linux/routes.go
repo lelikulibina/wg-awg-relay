@@ -52,6 +52,21 @@ func NewRouteManagerWithPolicy(iface string, mark, table uint32, runner Runner) 
 	return &RouteManager{iface:iface, runner:runner, current:make(map[string]netip.Prefix), mark:mark, table:table, ownedRules:make(map[string]bool)}, nil
 }
 
+
+ // Reset removes stale routes previously installed in this manager's dedicated table.
+ // It never flushes conntrack and does not remove policy rules that may belong to another process.
+func (m *RouteManager) Reset(ctx context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, family := range []string{"-4", "-6"} {
+		out, err := m.runner.Run(ctx, "ip", family, "route", "flush", "table", strconv.FormatUint(uint64(m.table), 10), "dev", m.iface)
+		if err != nil { return fmt.Errorf("не удалось очистить таблицу маршрутов (%s): %s: %w", family, strings.TrimSpace(string(out)), err) }
+	}
+	m.current = make(map[string]netip.Prefix)
+	m.uncertain = false
+	return nil
+}
+
 func (m *RouteManager) Add(ctx context.Context, prefix netip.Prefix) error {
 	if !prefix.IsValid() { return errors.New("некорректный маршрут") }
 	prefix = prefix.Masked()
