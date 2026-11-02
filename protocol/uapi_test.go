@@ -18,6 +18,7 @@ func TestBuildUAPIConfigCombinesAllowedIPsAndRoutes(t *testing.T) {
 	cfg := Config{
 		PrivateKey: testKey(),
 		ListenPort: 51820,
+		FwMark: 51820,
 		AmneziaWG: &AWGParameters{JC: 3, JMin: 50, JMax: 900, S1: 15, S2: 16, H1: "100-200"},
 		Peers: []Peer{{
 			Name: "uplink", PublicKey: testKey(), Endpoint: "vpn.example.com:51820",
@@ -29,7 +30,7 @@ func TestBuildUAPIConfigCombinesAllowedIPsAndRoutes(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	for _, expected := range []string{
 		"private_key=" + strings.Repeat("00", 32),
-		"listen_port=51820", "jc=3", "jmin=50", "jmax=900", "s1=15", "s2=16", "h1=100-200",
+		"listen_port=51820", "fwmark=51820", "jc=3", "jmin=50", "jmax=900", "s1=15", "s2=16", "h1=100-200",
 		"replace_peers=true", "endpoint=vpn.example.com:51820",
 		"allowed_ip=10.0.0.0/24", "allowed_ip=10.10.0.0/16", "allowed_ip=2001:db8::/32",
 	} {
