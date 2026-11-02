@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -114,6 +115,10 @@ func decodeRequest(w http.ResponseWriter, r *http.Request, target any) error {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil { return err }
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil { return errors.New("в теле запроса допускается только один JSON-объект") }
+		return err
+	}
 	return nil
 }
 
