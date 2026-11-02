@@ -29,12 +29,18 @@ func TestRouteManagerAddsIPv4AndIPv6(t *testing.T) {
 	for _, raw := range []string{"10.20.0.0/16", "2001:db8:10::/48"} {
 		if err := manager.Add(context.Background(), netip.MustParsePrefix(raw)); err != nil { t.Fatal(err) }
 	}
-	if len(runner.commands) != 2 { t.Fatalf("ожидалось две команды ip, получено %d", len(runner.commands)) }
-	if strings.Join(runner.commands[0], " ") != "ip -4 route replace 10.20.0.0/16 dev awg0" {
-		t.Fatalf("неверная IPv4-команда: %#v", runner.commands[0])
+	if len(runner.commands) != 4 { t.Fatalf("ожидались две policy rules и два маршрута, получено %d", len(runner.commands)) }
+	if strings.Join(runner.commands[0], " ") != "ip -4 rule add priority 10000 not fwmark 51820 lookup 51820" {
+		t.Fatalf("неверное IPv4 policy rule: %#v", runner.commands[0])
 	}
-	if strings.Join(runner.commands[1], " ") != "ip -6 route replace 2001:db8:10::/48 dev awg0" {
-		t.Fatalf("неверная IPv6-команда: %#v", runner.commands[1])
+	if strings.Join(runner.commands[1], " ") != "ip -6 rule add priority 10000 not fwmark 51820 lookup 51820" {
+		t.Fatalf("неверное IPv6 policy rule: %#v", runner.commands[1])
+	}
+	if strings.Join(runner.commands[2], " ") != "ip -4 route replace 10.20.0.0/16 dev awg0 table 51820" {
+		t.Fatalf("неверная IPv4-команда: %#v", runner.commands[2])
+	}
+	if strings.Join(runner.commands[3], " ") != "ip -6 route replace 2001:db8:10::/48 dev awg0 table 51820" {
+		t.Fatalf("неверная IPv6-команда: %#v", runner.commands[3])
 	}
 	if len(manager.Snapshot()) != 2 { t.Fatal("таблица платформенных маршрутов не обновилась") }
 }
@@ -49,16 +55,16 @@ func TestRouteManagerApplyAddsBeforeRemoving(t *testing.T) {
 	runner.commands = nil
 	if err := manager.Apply(context.Background(), []netip.Prefix{next}); err != nil { t.Fatal(err) }
 	if len(runner.commands) != 2 { t.Fatalf("ожидалось добавление и удаление, получено %#v", runner.commands) }
-	if !strings.Contains(strings.Join(runner.commands[0], " "), "route replace 10.1.0.0/16") {
+	if !strings.Contains(strings.Join(runner.commands[0], " "), "route replace 10.1.0.0/16 dev awg0 table 51820") {
 		t.Fatalf("новый маршрут должен устанавливаться первым: %#v", runner.commands)
 	}
-	if !strings.Contains(strings.Join(runner.commands[1], " "), "route del 10.0.0.0/8") {
+	if !strings.Contains(strings.Join(runner.commands[1], " "), "route del 10.0.0.0/8 dev awg0 table 51820") {
 		t.Fatalf("старый маршрут должен удаляться после нового: %#v", runner.commands)
 	}
 }
 
 func TestRouteManagerRollsBackAddedRoutesOnFailure(t *testing.T) {
-	runner := &fakeRunner{failAt:2}
+	runner := &fakeRunner{failAt:4}
 	manager, err := NewRouteManager("awg0", runner)
 	if err != nil { t.Fatal(err) }
 	err = manager.Apply(context.Background(), []netip.Prefix{
@@ -67,7 +73,7 @@ func TestRouteManagerRollsBackAddedRoutesOnFailure(t *testing.T) {
 	})
 	if err == nil { t.Fatal("ожидалась ошибка iproute2") }
 	if len(manager.Snapshot()) != 0 { t.Fatal("локальный набор изменился после неудачной операции") }
-	if len(runner.commands) != 3 { t.Fatalf("ожидались две попытки добавления и откат, команды: %#v", runner.commands) }
+	if len(runner.commands) != 5 { t.Fatalf("ожидались две policy rules, две попытки добавления и откат, команды: %#v", runner.commands) }
 }
 
 func TestRouteManagerRejectsInvalidInterface(t *testing.T) {
