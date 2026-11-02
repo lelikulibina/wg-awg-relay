@@ -66,10 +66,11 @@ func (p *DeviceProcess) Start(ctx context.Context) error {
 			p.mu.Unlock()
 			return fmt.Errorf("путь %q существует и не является Unix-сокетом", p.socket)
 		}
-		if err := os.Remove(p.socket); err != nil {
-			p.mu.Unlock()
-			return fmt.Errorf("не удалось удалить устаревший UAPI-сокет: %w", err)
-		}
+		p.mu.Unlock()
+		return fmt.Errorf("UAPI-сокет %q существует, но недоступен; проверьте работающий процесс и удалите устаревший сокет вручную", p.socket)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		p.mu.Unlock()
+		return fmt.Errorf("не удалось проверить UAPI-сокет: %w", err)
 	}
 	cmd := exec.CommandContext(ctx, p.binary, "-f", p.iface)
 	cmd.Stdout, cmd.Stderr = p.stdout, p.stderr
@@ -97,13 +98,18 @@ func (p *DeviceProcess) Start(ctx context.Context) error {
 		}
 		select {
 		case err := <-done:
+			p.clear(cmd)
 			if err == nil { return errors.New("amneziawg-go завершился до создания UAPI-сокета") }
 			return fmt.Errorf("amneziawg-go завершился до готовности UAPI: %w", err)
 		case <-ctx.Done():
 			_ = cmd.Process.Kill()
+			<-done
+			p.clear(cmd)
 			return ctx.Err()
 		case <-timeout.C:
 			_ = cmd.Process.Kill()
+			<-done
+			p.clear(cmd)
 			return fmt.Errorf("UAPI-сокет %q не появился за 10 секунд", p.socket)
 		case <-ticker.C:
 		}
@@ -122,9 +128,7 @@ func (p *DeviceProcess) Stop(ctx context.Context) error {
 	}
 	select {
 	case err := <-done:
-		p.mu.Lock()
-		p.cmd, p.done = nil, nil
-		p.mu.Unlock()
+		p.clear(cmd)
 		if err != nil { return fmt.Errorf("AmneziaWG завершился с ошибкой: %w", err) }
 		return nil
 	case <-ctx.Done():
@@ -139,3 +143,9 @@ func (p *DeviceProcess) Stop(ctx context.Context) error {
 
 func (p *DeviceProcess) SocketPath() string { return p.socket }
 func (p *DeviceProcess) Interface() string { return p.iface }
+
+func (p *DeviceProcess) clear(cmd *exec.Cmd) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.cmd == cmd { p.cmd, p.done = nil, nil }
+}
