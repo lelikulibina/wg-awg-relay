@@ -157,3 +157,13 @@ func TestParseConfigRejectsTrailingJSON(t *testing.T) {
 	_, err := ParseConfig([]byte(`{"peers":[]} {"peers":[]}`))
 	if err == nil { t.Fatal("ожидалась ошибка лишнего JSON-значения") }
 }
+
+func TestConfigValidatesInterfaceAddressesAndMTU(t *testing.T) {
+	cfg := Config{Address:[]string{"10.0.0.1/24", "2001:db8::1/64"}, MTU:1380}
+	if err := cfg.Validate(); err != nil { t.Fatal(err) }
+	cfg.Address = []string{"10.0.0.1/24", "bad"}
+	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка некорректного адреса") }
+	cfg.Address = []string{"10.0.0.1/24"}
+	cfg.MTU = 70000
+	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка MTU") }
+}
