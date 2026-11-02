@@ -35,6 +35,7 @@ type Service struct {
 func New(cfg protocol.Config, options Options) (*Service, error) {
 	if err := cfg.Validate(); err != nil { return nil, err }
 	if cfg.FwMark == 0 { cfg.FwMark = 51820 }
+	if _, err := protocol.BuildUAPIConfig(cfg); err != nil { return nil, fmt.Errorf("конфигурация устройства: %w", err) }
 	if options.BinaryPath == "" { options.BinaryPath = "amneziawg-go" }
 	if options.InterfaceName == "" { options.InterfaceName = "awg0" }
 	process, err := linux.NewDeviceProcess(options.BinaryPath, options.InterfaceName, options.SocketPath)
