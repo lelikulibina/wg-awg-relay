@@ -208,3 +208,9 @@ func TestBuildUAPIConfigSendsOnlyWinningPeerForEqualPrefix(t *testing.T) {
 		t.Fatal("победивший маршрут не назначен beta")
 	}
 }
+
+func TestBuildUAPIRejectsDuplicatePeerPublicKeys(t *testing.T) {
+	key := testKey()
+	cfg := Config{Peers: []Peer{{Name:"alpha", PublicKey:key},{Name:"beta", PublicKey:key}}}
+	if _, err := BuildUAPIConfig(cfg); err == nil { t.Fatal("ожидалась ошибка повторяющегося public_key") }
+}
