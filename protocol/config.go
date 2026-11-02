@@ -116,6 +116,9 @@ func (c Config) Validate() error {
 		for _, param := range []struct{name, value string}{{"content_padding_addition", awg.ContentPaddingAddition}, {"rekey_after_time", awg.RekeyAfterTime}, {"rekey_timeout", awg.RekeyTimeout}, {"reject_after_time", awg.RejectAfterTime}, {"keepalive_timeout", awg.KeepaliveTimeout}, {"max_handshake_attempts", awg.MaxHandshakeAttempts}} {
 			if err := validateUintRange(param.value, 16); err != nil { return fmt.Errorf("%s: %w", param.name, err) }
 		}
+		for _, packet := range []struct{name, value string}{{"i1", awg.I1}, {"i2", awg.I2}, {"i3", awg.I3}, {"i4", awg.I4}, {"i5", awg.I5}} {
+			if strings.ContainsAny(packet.value, "\r\n") { return fmt.Errorf("%s: значение не должно содержать перевод строки", packet.name) }
+		}
 	}
 	peers := make(map[string]struct{}, len(c.Peers))
 	for i, peer := range c.Peers {
