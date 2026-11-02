@@ -12,7 +12,7 @@ import (
 func appKey() string { return base64.StdEncoding.EncodeToString(make([]byte, 32)) }
 
 func TestServiceMaintainsRouteModelBeforeStart(t *testing.T) {
-	cfg := protocol.Config{Peers: []protocol.Peer{{
+	cfg := protocol.Config{PrivateKey:appKey(), Peers: []protocol.Peer{{
 		Name:"uplink", PublicKey:appKey(), AllowedIPs:[]string{"10.0.0.0/8"},
 	}}}
 	service, err := New(cfg, Options{BinaryPath:"amneziawg-go", InterfaceName:"awg0", SocketPath:"/tmp/awg0-test.sock"})
