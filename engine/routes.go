@@ -124,7 +124,11 @@ func (c *RouteController) commitConfig(ctx context.Context, next protocol.Config
 	attempted := make([]peerUpdate, 0, len(plan))
 	for _, update := range plan {
 		request, err := protocol.BuildPeerUAPI(update.peer, update.next)
-		if err != nil { return err }
+		if err != nil {
+			rollbackErr := c.rollback(attempted)
+			if rollbackErr != nil { return errors.Join(err, rollbackErr) }
+			return err
+		}
 		attempted = append(attempted, update)
 		if err := c.uapi.Apply(ctx, request); err != nil {
 			rollbackErr := c.rollback(attempted)
