@@ -81,3 +81,28 @@ func TestRouteManagerRejectsInvalidInterface(t *testing.T) {
 		t.Fatal("ожидалась ошибка слишком длинного имени интерфейса")
 	}
 }
+
+type existingV4RuleRunner struct { calls [][]string }
+
+func (r *existingV4RuleRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {
+	call := append([]string{name}, args...)
+	r.calls = append(r.calls, call)
+	joined := strings.Join(call, " ")
+	if strings.Contains(joined, "ip -4 rule add") {
+		return []byte("RTNETLINK answers: File exists"), errors.New("already exists")
+	}
+	return nil, nil
+}
+
+func TestRouteManagerDoesNotDeletePreexistingPolicyRule(t *testing.T) {
+	runner := &existingV4RuleRunner{}
+	manager, err := NewRouteManager("awg0", runner)
+	if err != nil { t.Fatal(err) }
+	prefix := netip.MustParsePrefix("10.0.0.0/8")
+	if err := manager.Add(context.Background(), prefix); err != nil { t.Fatal(err) }
+	if err := manager.Remove(context.Background(), prefix); err != nil { t.Fatal(err) }
+	for _, call := range runner.calls {
+		joined := strings.Join(call, " ")
+		if strings.Contains(joined, "ip -4 rule del") { t.Fatal("менеджер удалил policy rule, который существовал до его запуска") }
+	}
+}
