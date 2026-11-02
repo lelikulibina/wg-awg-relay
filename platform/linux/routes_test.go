@@ -118,6 +118,11 @@ func TestRouteManagerTracksRoutesWhenRollbackFails(t *testing.T) {
 	if err == nil { t.Fatal("ожидалась ошибка основного применения и отката") }
 	if len(manager.Snapshot()) != 1 { t.Fatalf("менеджер должен сохранить неопределённый маршрут для очистки: %#v", manager.Snapshot()) }
 	runner.failAt = 0
+	runner.commands = nil
+	if err := manager.Apply(context.Background(), []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}); err != nil { t.Fatal(err) }
+	if len(runner.commands) == 0 || !strings.Contains(strings.Join(runner.commands[0], " "), "route replace 10.0.0.0/8") {
+		t.Fatal("после неопределённого отката желаемый маршрут должен быть установлен повторно")
+	}
 	if err := manager.Apply(context.Background(), nil); err != nil { t.Fatal(err) }
 	if len(manager.Snapshot()) != 0 { t.Fatal("повторная очистка не удалила маршрут") }
 }
