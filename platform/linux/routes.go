@@ -103,9 +103,10 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 				}
 			}
 			if rollbackErr != nil {
-				for key, oldPrefix := range m.current { next[key] = oldPrefix }
-				for _, addedPrefix := range added { next[addedPrefix.String()] = addedPrefix }
-				m.current = next
+				uncertain := make(map[string]netip.Prefix, len(m.current)+len(added))
+				for key, oldPrefix := range m.current { uncertain[key] = oldPrefix }
+				for _, addedPrefix := range added { uncertain[addedPrefix.String()] = addedPrefix }
+				m.current = uncertain
 				return errors.Join(fmt.Errorf("не удалось добавить маршрут %s: %w", prefix, err), fmt.Errorf("ошибка отката: %w", rollbackErr))
 			}
 			if len(m.current) == 0 { _ = m.removeRulesLocked(rollbackCtx) }
