@@ -11,12 +11,13 @@ import (
 type fakeRunner struct {
 	commands [][]string
 	failAt int
+	failAt2 int
 }
 
 func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {
 	command := append([]string{name}, args...)
 	f.commands = append(f.commands, command)
-	if f.failAt > 0 && len(f.commands) == f.failAt {
+	if f.failAt > 0 && len(f.commands) == f.failAt || f.failAt2 > 0 && len(f.commands) == f.failAt2 {
 		return []byte("simulated failure"), errors.New("command failed")
 	}
 	return nil, nil
@@ -108,7 +109,7 @@ func TestRouteManagerDoesNotDeletePreexistingPolicyRule(t *testing.T) {
 }
 
 func TestRouteManagerTracksRoutesWhenRollbackFails(t *testing.T) {
-	runner := &fakeRunner{failAt:5}
+	runner := &fakeRunner{failAt:4, failAt2:5}
 	manager, err := NewRouteManager("awg0", runner)
 	if err != nil { t.Fatal(err) }
 	err = manager.Apply(context.Background(), []netip.Prefix{
