@@ -87,9 +87,12 @@ func BuildUAPIConfig(cfg Config) (string, error) {
 
 	peers := append([]Peer(nil), cfg.Peers...)
 	sort.Slice(peers, func(i,j int) bool { return peers[i].Name < peers[j].Name })
+	seenKeys := make(map[string]string, len(peers))
 	for _, peer := range peers {
 		key, err := keyToUAPI(peer.PublicKey)
 		if err != nil { return "", fmt.Errorf("пир %q: public_key: %w", peer.Name, err) }
+		if previous, exists := seenKeys[key]; exists { return "", fmt.Errorf("пиры %q и %q используют одинаковый public_key", previous, peer.Name) }
+		seenKeys[key] = peer.Name
 		b.WriteString("public_key=" + key + "\n")
 		if peer.Endpoint != "" {
 			if err := validateEndpoint(peer.Endpoint); err != nil {
