@@ -185,6 +185,15 @@ func (c *RouteController) rollback(attempted []peerUpdate) error {
 	return result
 }
 
+
+// ReplaceConfig transactionally replaces the desired configuration and applies
+// only the resulting per-peer AllowedIPs changes to an already running device.
+func (c *RouteController) ReplaceConfig(ctx context.Context, next protocol.Config) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.commitConfig(ctx, cloneConfig(next))
+}
+
 func (c *RouteController) Lookup(addr netip.Addr) (protocol.Route, bool) {
 	return c.table.Lookup(addr)
 }
