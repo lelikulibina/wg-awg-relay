@@ -1,6 +1,8 @@
 {
   "private_key": "REPLACE_WITH_INTERFACE_PRIVATE_KEY",
   "listen_port": 51820,
+  "fwmark": 51820,
+  "nat": true,
   "amneziawg": { "jc": 4, "jmin": 40, "jmax": 70 },
   "peers": [
     {
