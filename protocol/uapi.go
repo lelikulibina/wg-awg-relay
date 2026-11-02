@@ -121,7 +121,6 @@ func ApplyUAPI(ctx context.Context, conn net.Conn, request string) error {
 	if err := ctx.Err(); err != nil { return err }
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := conn.SetDeadline(deadline); err != nil { return err }
-		defer conn.SetDeadline(time.Time{})
 	}
 	stopCancel := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })
 	defer stopCancel()
