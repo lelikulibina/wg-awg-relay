@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,15 +30,23 @@ type RouteManager struct {
 	iface string
 	runner Runner
 	current map[string]netip.Prefix
+	mark uint32
+	table uint32
+	rulesReady bool
 }
 
 func NewRouteManager(iface string, runner Runner) (*RouteManager, error) {
+	return NewRouteManagerWithPolicy(iface, 51820, 51820, runner)
+}
+
+func NewRouteManagerWithPolicy(iface string, mark, table uint32, runner Runner) (*RouteManager, error) {
 	if strings.TrimSpace(iface) == "" || iface != strings.TrimSpace(iface) || len(iface) > 15 {
 		return nil, errors.New("имя Linux-интерфейса должно содержать от 1 до 15 символов без пробелов по краям")
 	}
 	if strings.ContainsAny(iface, "/\t\r\n ") { return nil, errors.New("недопустимое имя Linux-интерфейса") }
+	if mark == 0 || table == 0 { return nil, errors.New("fwmark и номер таблицы маршрутизации должны быть ненулевыми") }
 	if runner == nil { runner = ExecRunner{} }
-	return &RouteManager{iface:iface, runner:runner, current:make(map[string]netip.Prefix)}, nil
+	return &RouteManager{iface:iface, runner:runner, current:make(map[string]netip.Prefix), mark:mark, table:table}, nil
 }
 
 func (m *RouteManager) Add(ctx context.Context, prefix netip.Prefix) error {
@@ -45,7 +54,8 @@ func (m *RouteManager) Add(ctx context.Context, prefix netip.Prefix) error {
 	prefix = prefix.Masked()
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if err := m.addLocked(ctx, prefix); err != nil { return err }
+	if err := m.ensureRulesLocked(ctx); err != nil { return err }
+	if err := m.addLocked(ctx, prefix); err != nil { if len(m.current) == 0 { _ = m.removeRulesLocked(context.Background()) }; return err }
 	m.current[prefix.String()] = prefix
 	return nil
 }
@@ -57,6 +67,7 @@ func (m *RouteManager) Remove(ctx context.Context, prefix netip.Prefix) error {
 	defer m.mu.Unlock()
 	if err := m.removeLocked(ctx, prefix); err != nil { return err }
 	delete(m.current, prefix.String())
+	if len(m.current) == 0 { return m.removeRulesLocked(ctx) }
 	return nil
 }
 
@@ -74,6 +85,7 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 	defer m.mu.Unlock()
 
 	var added, removed []netip.Prefix
+	if len(next) > 0 { if err := m.ensureRulesLocked(ctx); err != nil { return err } }
 	for _, entry := range sortedPrefixes(next) {
 		key, prefix := entry.key, entry.prefix
 		if _, exists := m.current[key]; exists { continue }
@@ -81,6 +93,7 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 			rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			for i := len(added)-1; i >= 0; i-- { _ = m.removeLocked(rollbackCtx, added[i]) }
+			if len(m.current) == 0 { _ = m.removeRulesLocked(rollbackCtx) }
 			return fmt.Errorf("не удалось добавить маршрут %s: %w", prefix, err)
 		}
 		added = append(added, prefix)
@@ -108,6 +121,7 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 		removed = append(removed, prefix)
 	}
 	m.current = next
+	if len(next) == 0 { return m.removeRulesLocked(ctx) }
 	return nil
 }
 
@@ -127,7 +141,7 @@ func (m *RouteManager) Snapshot() []netip.Prefix {
 func (m *RouteManager) addLocked(ctx context.Context, prefix netip.Prefix) error {
 	family := "-6"
 	if prefix.Addr().Is4() { family = "-4" }
-	out, err := m.runner.Run(ctx, "ip", family, "route", "replace", prefix.String(), "dev", m.iface)
+	out, err := m.runner.Run(ctx, "ip", family, "route", "replace", prefix.String(), "dev", m.iface, "table", strconv.FormatUint(uint64(m.table), 10))
 	if err != nil { return fmt.Errorf("iproute2: %s", strings.TrimSpace(string(out))) }
 	return nil
 }
@@ -135,7 +149,7 @@ func (m *RouteManager) addLocked(ctx context.Context, prefix netip.Prefix) error
 func (m *RouteManager) removeLocked(ctx context.Context, prefix netip.Prefix) error {
 	family := "-6"
 	if prefix.Addr().Is4() { family = "-4" }
-	out, err := m.runner.Run(ctx, "ip", family, "route", "del", prefix.String(), "dev", m.iface)
+	out, err := m.runner.Run(ctx, "ip", family, "route", "del", prefix.String(), "dev", m.iface, "table", strconv.FormatUint(uint64(m.table), 10))
 	if err != nil {
 		message := strings.TrimSpace(string(out))
 		if strings.Contains(message, "No such process") { return nil }
@@ -152,4 +166,30 @@ func sortedPrefixes(values map[string]netip.Prefix) []struct {
 	for key, prefix := range values { out = append(out, struct { key string; prefix netip.Prefix }{key, prefix}) }
 	sort.Slice(out, func(i,j int) bool { return out[i].prefix.String() < out[j].prefix.String() })
 	return out
+}
+
+func (m *RouteManager) ensureRulesLocked(ctx context.Context) error {
+	if m.rulesReady { return nil }
+	for _, family := range []string{"-4", "-6"} {
+		args := []string{family, "rule", "add", "priority", "10000", "not", "fwmark", strconv.FormatUint(uint64(m.mark), 10), "lookup", strconv.FormatUint(uint64(m.table), 10)}
+		out, err := m.runner.Run(ctx, "ip", args...)
+		if err != nil && !strings.Contains(string(out), "File exists") {
+			return fmt.Errorf("не удалось добавить policy rule (%s): %s: %w", family, strings.TrimSpace(string(out)), err)
+		}
+	}
+	m.rulesReady = true
+	return nil
+}
+
+func (m *RouteManager) removeRulesLocked(ctx context.Context) error {
+	if !m.rulesReady { return nil }
+	for _, family := range []string{"-4", "-6"} {
+		args := []string{family, "rule", "del", "priority", "10000", "not", "fwmark", strconv.FormatUint(uint64(m.mark), 10), "lookup", strconv.FormatUint(uint64(m.table), 10)}
+		out, err := m.runner.Run(ctx, "ip", args...)
+		if err != nil && !strings.Contains(string(out), "No such file") && !strings.Contains(string(out), "No such process") {
+			return fmt.Errorf("не удалось удалить policy rule (%s): %s: %w", family, strings.TrimSpace(string(out)), err)
+		}
+	}
+	m.rulesReady = false
+	return nil
 }
