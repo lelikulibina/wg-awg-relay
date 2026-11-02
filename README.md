@@ -55,7 +55,7 @@ Linux-релей WireGuard / AmneziaWG для произвольного наб�
 
 ## Linux и безопасность маршрутов
 
-Для запуска нужны права администратора, установленный `amneziawg-go` и `iproute2`. Для `"nat": true` дополнительно нужен `nftables`.
+Для запуска нужны права администратора, установленный официальный [`amneziawg-go`](https://github.com/amnezia-vpn/amneziawg-go) и `iproute2`. В `examples/config.json` ключи намеренно оставлены как заполнители — замените их на реальные ключи интерфейса и пиров перед запуском. Для `"nat": true` дополнительно нужен `nftables`.
 
 Процесс запускается как `amneziawg-go -f <interface>`; по умолчанию UAPI-сокет находится в `/var/run/amneziawg/<interface>.sock`.
 
