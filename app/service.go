@@ -66,10 +66,16 @@ func (s *Service) Start(ctx context.Context) error {
 	cleanup := func(cause error) error {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cleanupCancel()
-		_ = s.routes.Apply(cleanupCtx, nil)
+		if routeErr := s.routes.Apply(cleanupCtx, nil); routeErr != nil {
+			s.started = true
+			return errors.Join(cause, fmt.Errorf("не удалось очистить системные маршруты; туннель оставлен работающим для безопасного восстановления: %w", routeErr))
+		}
 		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if stopErr := s.process.Stop(stopCtx); stopErr != nil { s.stopped = true; return errors.Join(cause, stopErr) }
+		if stopErr := s.process.Stop(stopCtx); stopErr != nil {
+			s.started = true
+			return errors.Join(cause, stopErr)
+		}
 		s.stopped = true
 		return cause
 	}
