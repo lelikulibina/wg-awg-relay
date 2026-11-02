@@ -2,7 +2,6 @@ package linux
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/netip"
 	"strconv"
@@ -45,4 +44,3 @@ func (m *LinkManager) Configure(ctx context.Context, addresses []string, mtu int
 	return nil
 }
 
-var _ = errors.New
