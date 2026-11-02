@@ -1,0 +1,14 @@
+# Собранные бинарные файлы
+/wg-awg-relay
+*.test
+*.out
+coverage.*
+
+# Локальные конфигурации и секреты
+/config.local.json
+*.key
+*.pem
+
+# IDE
+.idea/
+.vscode/
