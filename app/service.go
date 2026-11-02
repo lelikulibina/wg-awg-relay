@@ -104,6 +104,7 @@ func (s *Service) Stop(ctx context.Context) error {
 func (s *Service) AddRoute(ctx context.Context, route protocol.Route) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.stopped { return errors.New("релей уже остановлен") }
 	old := s.controller.Config()
 	if err := s.controller.AddRoute(ctx, route); err != nil { return err }
 	if !s.started { return nil }
@@ -128,6 +129,7 @@ func (s *Service) AddRoute(ctx context.Context, route protocol.Route) error {
 func (s *Service) RemoveRoute(ctx context.Context, prefix netip.Prefix, peer string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.stopped { return errors.New("релей уже остановлен") }
 	old := s.controller.Config()
 	if err := s.controller.RemoveRoute(ctx, prefix, peer); err != nil { return err }
 	if !s.started { return nil }
