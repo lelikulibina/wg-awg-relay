@@ -46,7 +46,8 @@ func NewRouteManagerWithPolicy(iface string, mark, table uint32, runner Runner) 
 		return nil, errors.New("имя Linux-интерфейса должно содержать от 1 до 15 символов без пробелов по краям")
 	}
 	if strings.ContainsAny(iface, "/\t\r\n ") { return nil, errors.New("недопустимое имя Linux-интерфейса") }
-	if mark == 0 || table == 0 { return nil, errors.New("fwmark и номер таблицы маршрутизации должны быть ненулевыми") }
+	if mark == 0 { return nil, errors.New("fwmark должен быть ненулевым") }
+	if table == 0 || table == 253 || table == 254 || table == 255 { return nil, errors.New("номер policy table не должен совпадать с зарезервированными таблицами Linux") }
 	if runner == nil { runner = ExecRunner{} }
 	return &RouteManager{iface:iface, runner:runner, current:make(map[string]netip.Prefix), mark:mark, table:table, ownedRules:make(map[string]bool)}, nil
 }
@@ -181,7 +182,7 @@ func (m *RouteManager) addLocked(ctx context.Context, prefix netip.Prefix) error
 	family := "-6"
 	if prefix.Addr().Is4() { family = "-4" }
 	out, err := m.runner.Run(ctx, "ip", family, "route", "replace", prefix.String(), "dev", m.iface, "table", strconv.FormatUint(uint64(m.table), 10))
-	if err != nil { return fmt.Errorf("iproute2: %s", strings.TrimSpace(string(out))) }
+	if err != nil { return fmt.Errorf("iproute2: %s: %w", strings.TrimSpace(string(out)), err) }
 	return nil
 }
 
@@ -192,7 +193,7 @@ func (m *RouteManager) removeLocked(ctx context.Context, prefix netip.Prefix) er
 	if err != nil {
 		message := strings.TrimSpace(string(out))
 		if strings.Contains(message, "No such process") { return nil }
-		return fmt.Errorf("iproute2: %s", message)
+		return fmt.Errorf("iproute2: %s: %w", message, err)
 	}
 	return nil
 }
