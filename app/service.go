@@ -66,7 +66,7 @@ func (s *Service) Start(ctx context.Context) error {
 	cleanup := func(cause error) error {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cleanupCancel()
-		if routeErr := s.routes.Apply(cleanupCtx, nil); routeErr != nil {
+		if routeErr := s.routes.Reset(cleanupCtx); routeErr != nil {
 			s.started = true
 			return errors.Join(cause, fmt.Errorf("не удалось очистить системные маршруты; туннель оставлен работающим для безопасного восстановления: %w", routeErr))
 		}
@@ -79,6 +79,7 @@ func (s *Service) Start(ctx context.Context) error {
 		s.stopped = true
 		return cause
 	}
+	if err := s.routes.Reset(ctx); err != nil { return cleanup(err) }
 	desired := s.controller.Config()
 	if err := s.link.Configure(ctx, desired.Address, desired.MTU); err != nil { return cleanup(err) }
 	effective, err := desired.EffectiveRoutes()
