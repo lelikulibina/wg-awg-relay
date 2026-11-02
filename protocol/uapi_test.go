@@ -19,7 +19,7 @@ func TestBuildUAPIConfigCombinesAllowedIPsAndRoutes(t *testing.T) {
 		PrivateKey: testKey(),
 		ListenPort: 51820,
 		FwMark: 51820,
-		AmneziaWG: &AWGParameters{JC: 3, JMin: 50, JMax: 900, S1: 15, S2: 16, H1: "100-200"},
+		AmneziaWG: &AWGParameters{JC: 3, JMin: 50, JMax: 900, S1: 15, S2: 16, S3: 16, S4: 16, H1: "100-200", HeaderProtectionKey: testKey()},
 		Peers: []Peer{{
 			Name: "uplink", PublicKey: testKey(), Endpoint: "vpn.example.com:51820",
 			AllowedIPs: []string{"10.0.0.1/24", "2001:db8::/32"},
