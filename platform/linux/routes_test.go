@@ -126,3 +126,11 @@ func TestRouteManagerTracksRoutesWhenRollbackFails(t *testing.T) {
 	if err := manager.Apply(context.Background(), nil); err != nil { t.Fatal(err) }
 	if len(manager.Snapshot()) != 0 { t.Fatal("повторная очистка не удалила маршрут") }
 }
+
+func TestRouteManagerRejectsReservedRoutingTables(t *testing.T) {
+	for _, table := range []uint32{0, 253, 254, 255} {
+		if _, err := NewRouteManagerWithPolicy("awg0", 51820, table, &fakeRunner{}); err == nil {
+			t.Fatalf("ожидалась ошибка зарезервированной таблицы %d", table)
+		}
+	}
+}
