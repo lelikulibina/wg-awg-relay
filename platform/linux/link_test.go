@@ -2,7 +2,6 @@ package linux
 
 import (
 	"context"
-	"net/netip"
 	"strings"
 	"testing"
 )
@@ -33,5 +32,4 @@ func TestLinkManagerValidatesAllInputsBeforeExecuting(t *testing.T) {
 		t.Fatal("ожидалась ошибка адреса")
 	}
 	if len(runner.commands) != 0 { t.Fatal("команды не должны выполняться до проверки всех адресов") }
-	if _, err := netip.ParsePrefix("10.0.0.1/24"); err != nil { t.Fatal(err) }
 }
