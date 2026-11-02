@@ -86,7 +86,12 @@ func run(args []string) error {
 	defer cancel()
 	runCtx, cancelRun := context.WithCancel(ctx)
 	defer cancelRun()
-	if err := service.Start(runCtx); err != nil { return fmt.Errorf("не удалось запустить релей: %w", err) }
+	if err := service.Start(runCtx); err != nil {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer stopCancel()
+		stopErr := service.Stop(stopCtx)
+		return errors.Join(fmt.Errorf("не удалось запустить релей: %w", err), stopErr)
+	}
 	controlServer, err := control.NewServer(service, *controlSocket)
 	if err != nil {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
