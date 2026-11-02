@@ -90,6 +90,13 @@ func (c *RouteController) RemoveRoute(ctx context.Context, prefix netip.Prefix, 
 	next.Routes = global
 	for i := range next.Peers {
 		if next.Peers[i].Name != peer { continue }
+		allowed := next.Peers[i].AllowedIPs[:0]
+		for _, raw := range next.Peers[i].AllowedIPs {
+			p, err := netip.ParsePrefix(raw)
+			if err == nil && p.Masked() == prefix { removed = true; continue }
+			allowed = append(allowed, raw)
+		}
+		next.Peers[i].AllowedIPs = allowed
 		routes := next.Peers[i].Routes[:0]
 		for _, route := range next.Peers[i].Routes {
 			p, err := netip.ParsePrefix(route.Prefix)
