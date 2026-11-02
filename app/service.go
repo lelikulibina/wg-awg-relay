@@ -35,6 +35,7 @@ type Service struct {
 func New(cfg protocol.Config, options Options) (*Service, error) {
 	if err := cfg.Validate(); err != nil { return nil, err }
 	if cfg.PrivateKey == "" { return nil, errors.New("для запуска устройства требуется private_key") }
+	if len(cfg.Peers) == 0 { return nil, errors.New("для релея требуется хотя бы один исходящий пир") }
 	if cfg.FwMark == 0 { cfg.FwMark = 51820 }
 	if _, err := protocol.BuildUAPIConfig(cfg); err != nil { return nil, fmt.Errorf("конфигурация устройства: %w", err) }
 	if options.BinaryPath == "" { options.BinaryPath = "amneziawg-go" }
