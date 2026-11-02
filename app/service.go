@@ -22,7 +22,6 @@ type Options struct {
 
 type Service struct {
 	mu sync.Mutex
-	config protocol.Config
 	process *linux.DeviceProcess
 	uapi protocol.UAPIClient
 	link *linux.LinkManager
@@ -51,7 +50,7 @@ func New(cfg protocol.Config, options Options) (*Service, error) {
 	nat, err := linux.NewNATManager(options.InterfaceName, options.Runner)
 	if err != nil { return nil, err }
 	return &Service{
-		config:cloneConfig(cfg), process:process, uapi:client, link:link, routes:routes,
+		process:process, uapi:client, link:link, routes:routes,
 		nat:nat, forwarding:linux.NewForwardingManager(options.Runner), controller:controller,
 	}, nil
 }
@@ -63,10 +62,13 @@ func (s *Service) Start(ctx context.Context) error {
 	if s.stopped { return errors.New("остановленный экземпляр релея нельзя запустить повторно; создайте новый Service") }
 	if err := s.process.Start(ctx); err != nil { return err }
 	cleanup := func(cause error) error {
-		_ = s.routes.Apply(context.Background(), nil)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		_ = s.routes.Apply(cleanupCtx, nil)
 		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if stopErr := s.process.Stop(stopCtx); stopErr != nil { return errors.Join(cause, stopErr) }
+		if stopErr := s.process.Stop(stopCtx); stopErr != nil { s.stopped = true; return errors.Join(cause, stopErr) }
+		s.stopped = true
 		return cause
 	}
 	desired := s.controller.Config()
