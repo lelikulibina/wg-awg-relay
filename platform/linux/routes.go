@@ -128,6 +128,13 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 		key, prefix := entry.key, entry.prefix
 		if _, exists := next[key]; exists { continue }
 		if err := m.removeLocked(ctx, prefix); err != nil {
+			if forceReconcile {
+				uncertain := make(map[string]netip.Prefix, len(m.current)+len(next))
+				for oldKey, oldPrefix := range m.current { uncertain[oldKey] = oldPrefix }
+				for newKey, newPrefix := range next { uncertain[newKey] = newPrefix }
+				m.current, m.uncertain = uncertain, true
+				return fmt.Errorf("не удалось восстановить набор маршрутов: %w", err)
+			}
 			rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			var rollbackErr error
