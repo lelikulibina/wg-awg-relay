@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"reflect"
 	"sort"
 	"sync"
 	"time"
@@ -119,6 +120,7 @@ func (c *RouteController) commitConfig(ctx context.Context, next protocol.Config
 		return nil
 	}
 
+	if !sameDeviceSettings(c.config, next) { return errors.New("после запуска нельзя менять параметры интерфейса или состав пиров; используйте только обновление маршрутов") }
 	plan, err := makeUpdatePlan(c.config, next)
 	if err != nil { return err }
 	attempted := make([]peerUpdate, 0, len(plan))
@@ -245,4 +247,22 @@ func cloneConfig(cfg protocol.Config) protocol.Config {
 		out.AmneziaWG = &awg
 	}
 	return out
+}
+
+func sameDeviceSettings(a, b protocol.Config) bool {
+	if a.PrivateKey != b.PrivateKey || a.ListenPort != b.ListenPort || a.FwMark != b.FwMark ||
+		a.MTU != b.MTU || a.NAT != b.NAT || !reflect.DeepEqual(a.Address, b.Address) ||
+		!reflect.DeepEqual(a.AmneziaWG, b.AmneziaWG) || len(a.Peers) != len(b.Peers) {
+		return false
+	}
+	left := make(map[string]protocol.Peer, len(a.Peers))
+	for _, peer := range a.Peers { left[peer.Name] = peer }
+	for _, peer := range b.Peers {
+		old, ok := left[peer.Name]
+		if !ok || old.PublicKey != peer.PublicKey || old.Endpoint != peer.Endpoint ||
+			old.PersistentKeepalive != peer.PersistentKeepalive {
+			return false
+		}
+	}
+	return true
 }
