@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Runner interface {
@@ -73,25 +74,29 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 	defer m.mu.Unlock()
 
 	var added, removed []netip.Prefix
-	for key, prefix := range next {
+	for key, prefix := range sortedPrefixes(next) {
 		if _, exists := m.current[key]; exists { continue }
 		if err := m.addLocked(ctx, prefix); err != nil {
-			for i := len(added)-1; i >= 0; i-- { _ = m.removeLocked(context.Background(), added[i]) }
+			rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			for i := len(added)-1; i >= 0; i-- { _ = m.removeLocked(rollbackCtx, added[i]) }
 			return fmt.Errorf("не удалось добавить маршрут %s: %w", prefix, err)
 		}
 		added = append(added, prefix)
 	}
-	for key, prefix := range m.current {
+	for key, prefix := range sortedPrefixes(m.current) {
 		if _, exists := next[key]; exists { continue }
 		if err := m.removeLocked(ctx, prefix); err != nil {
+			rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
 			var rollbackErr error
 			for i := len(removed)-1; i >= 0; i-- {
-				if restoreErr := m.addLocked(context.Background(), removed[i]); restoreErr != nil {
+				if restoreErr := m.addLocked(rollbackCtx, removed[i]); restoreErr != nil {
 					rollbackErr = errors.Join(rollbackErr, restoreErr)
 				}
 			}
 			for i := len(added)-1; i >= 0; i-- {
-				if removeErr := m.removeLocked(context.Background(), added[i]); removeErr != nil {
+				if removeErr := m.removeLocked(rollbackCtx, added[i]); removeErr != nil {
 					rollbackErr = errors.Join(rollbackErr, removeErr)
 				}
 			}
@@ -131,8 +136,18 @@ func (m *RouteManager) removeLocked(ctx context.Context, prefix netip.Prefix) er
 	out, err := m.runner.Run(ctx, "ip", family, "route", "del", prefix.String(), "dev", m.iface)
 	if err != nil {
 		message := strings.TrimSpace(string(out))
-		if strings.Contains(message, "No such process") || strings.Contains(message, "Cannot find") { return nil }
+		if strings.Contains(message, "No such process") { return nil }
 		return fmt.Errorf("iproute2: %s", message)
 	}
 	return nil
+}
+
+func sortedPrefixes(values map[string]netip.Prefix) []struct {
+	key string
+	prefix netip.Prefix
+} {
+	out := make([]struct { key string; prefix netip.Prefix }, 0, len(values))
+	for key, prefix := range values { out = append(out, struct { key string; prefix netip.Prefix }{key, prefix}) }
+	sort.Slice(out, func(i,j int) bool { return out[i].prefix.String() < out[j].prefix.String() })
+	return out
 }
