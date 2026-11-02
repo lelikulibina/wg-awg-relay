@@ -34,7 +34,7 @@ func NewDeviceProcess(binary, iface, socketPath string) (*DeviceProcess, error) 
 	if _, err := NewRouteManager(iface, nil); err != nil { return nil, err }
 	if socketPath == "" { socketPath = DefaultUAPISocketPath(iface) }
 	if !filepath.IsAbs(socketPath) { return nil, errors.New("путь к UAPI-сокету должен быть абсолютным") }
-	return &DeviceProcess{binary:binary, iface:iface, socket:socketPath}, nil
+	return &DeviceProcess{binary:binary, iface:iface, socket:socketPath, stdout:os.Stdout, stderr:os.Stderr}, nil
 }
 
 func (p *DeviceProcess) SetOutput(stdout, stderr *os.File) {
