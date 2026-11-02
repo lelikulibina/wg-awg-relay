@@ -56,7 +56,10 @@ func (m *RouteManager) Add(ctx context.Context, prefix netip.Prefix) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if err := m.ensureRulesLocked(ctx); err != nil { return err }
-	if err := m.addLocked(ctx, prefix); err != nil { if len(m.current) == 0 { _ = m.removeRulesLocked(context.Background()) }; return err }
+	if err := m.addLocked(ctx, prefix); err != nil {
+		if len(m.current) == 0 { rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second); _ = m.removeRulesLocked(rollbackCtx); cancel() }
+		return err
+	}
 	m.current[prefix.String()] = prefix
 	return nil
 }
