@@ -81,7 +81,7 @@ func TestAmneziaWGParametersValidation(t *testing.T) {
 }
 
 func TestAmneziaWGHeaderRanges(t *testing.T) {
-	cfg := Config{Peers: []Peer{{Name:"edge"}}, AmneziaWG:&AWGParameters{H1:"10-20", H2:"42"}}
+	cfg := Config{Peers: []Peer{{Name:"edge"}}, AmneziaWG:&AWGParameters{H1:"10-20", H2:"42", HeaderProtectionKey:strings.Repeat("00", 32), S1:12, S2:12, S3:12, S4:12}}
 	if err := cfg.Validate(); err != nil { t.Fatalf("корректные диапазоны отклонены: %v", err) }
 	cfg.AmneziaWG.H3 = "20-10"
 	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка перевёрнутого диапазона") }
@@ -132,7 +132,7 @@ func TestPeerAllowedIPsReturnsCompleteEffectiveSet(t *testing.T) {
 }
 
 func TestAmneziaWGHeaderRangesCannotOverlap(t *testing.T) {
-	cfg := Config{Peers: []Peer{{Name:"edge"}}, AmneziaWG:&AWGParameters{H1:"100-200", H2:"200-300"}}
+	cfg := Config{Peers: []Peer{{Name:"edge"}}, AmneziaWG:&AWGParameters{H1:"100-200", H2:"200-300", HeaderProtectionKey:strings.Repeat("00", 32), S1:12, S2:12, S3:12, S4:12}}
 	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка пересекающихся диапазонов H1/H2") }
 	cfg.AmneziaWG.H2 = "(off)"
 	if err := cfg.Validate(); err != nil { t.Fatalf("отключённый диапазон не должен конфликтовать: %v", err) }
@@ -141,4 +141,9 @@ func TestAmneziaWGHeaderRangesCannotOverlap(t *testing.T) {
 func TestAmneziaWGCustomPacketsCannotInjectUAPILines(t *testing.T) {
 	cfg := Config{Peers: []Peer{{Name:"edge"}}, AmneziaWG:&AWGParameters{I1:"<b 0x0102>" + string([]byte{10}) + "private_key=bad"}}
 	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка перевода строки в I1") }
+}
+
+func TestAmneziaWGHeaderRangesRequireProtectionKey(t *testing.T) {
+	cfg := Config{Peers: []Peer{{Name:"edge"}}, AmneziaWG:&AWGParameters{H1:"100-200"}}
+	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка отсутствующего HeaderProtectionKey") }
 }
