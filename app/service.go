@@ -23,7 +23,6 @@ type Options struct {
 type Service struct {
 	mu sync.Mutex
 	process *linux.DeviceProcess
-	uapi protocol.UAPIClient
 	link *linux.LinkManager
 	routes *linux.RouteManager
 	nat *linux.NATManager
@@ -50,7 +49,7 @@ func New(cfg protocol.Config, options Options) (*Service, error) {
 	nat, err := linux.NewNATManager(options.InterfaceName, options.Runner)
 	if err != nil { return nil, err }
 	return &Service{
-		process:process, uapi:client, link:link, routes:routes,
+		process:process, link:link, routes:routes,
 		nat:nat, forwarding:linux.NewForwardingManager(options.Runner), controller:controller,
 	}, nil
 }
@@ -75,7 +74,7 @@ func (s *Service) Start(ctx context.Context) error {
 	if err := s.link.Configure(ctx, desired.Address, desired.MTU); err != nil { return cleanup(err) }
 	effective, err := desired.EffectiveRoutes()
 	if err != nil { return cleanup(err) }
-	ipv6 := hasIPv6(s.config.Address, effective)
+	ipv6 := hasIPv6(desired.Address, effective)
 	if err := s.forwarding.Enable(ctx, ipv6); err != nil { return cleanup(err) }
 	if desired.NAT {
 		if err := s.nat.Enable(ctx); err != nil { return cleanup(err) }
@@ -129,7 +128,9 @@ func (s *Service) RemoveRoute(ctx context.Context, prefix netip.Prefix, peer str
 	effective, err := next.EffectiveRoutes()
 	if err == nil { err = s.routes.Apply(ctx, routePrefixes(effective)) }
 	if err != nil {
-		rollbackErr := s.controller.ReplaceConfig(context.Background(), old)
+		rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		rollbackErr := s.controller.ReplaceConfig(rollbackCtx, old)
 		if rollbackErr != nil { return errors.Join(fmt.Errorf("не удалось применить системные маршруты: %w", err), fmt.Errorf("не удалось откатить UAPI: %w", rollbackErr)) }
 		return err
 	}
@@ -159,21 +160,3 @@ func hasIPv6(addresses []string, routes []protocol.Route) bool {
 	return false
 }
 
-func cloneConfig(cfg protocol.Config) protocol.Config {
-	out := cfg
-	out.Address = append([]string(nil), cfg.Address...)
-	out.Routes = append([]protocol.RouteConfig(nil), cfg.Routes...)
-	out.Peers = make([]protocol.Peer, len(cfg.Peers))
-	for i, peer := range cfg.Peers {
-		out.Peers[i] = peer
-		out.Peers[i].AllowedIPs = append([]string(nil), peer.AllowedIPs...)
-		out.Peers[i].Routes = append([]protocol.RouteConfig(nil), peer.Routes...)
-	}
-	if cfg.AmneziaWG != nil {
-		awg := *cfg.AmneziaWG
-		if cfg.AmneziaWG.RandomTrailers != nil { v := *cfg.AmneziaWG.RandomTrailers; awg.RandomTrailers = &v }
-		if cfg.AmneziaWG.DisableCookies != nil { v := *cfg.AmneziaWG.DisableCookies; awg.DisableCookies = &v }
-		out.AmneziaWG = &awg
-	}
-	return out
-}
