@@ -296,7 +296,7 @@ func parseUintRange(raw string, bits int) (uint64, uint64, bool, error) {
 }
 
 func validateEndpoint(raw string) error {
-	if strings.ContainsAny(raw, "\\r\\n\\t ") || strings.Contains(raw, "=") {
+	if strings.ContainsAny(raw, "\r\n\t ") || strings.Contains(raw, "=") {
 		return errors.New("endpoint содержит недопустимые символы")
 	}
 	host, port, err := net.SplitHostPort(raw)
