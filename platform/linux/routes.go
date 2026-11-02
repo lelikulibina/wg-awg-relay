@@ -96,7 +96,18 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 		if err := m.addLocked(ctx, prefix); err != nil {
 			rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			for i := len(added)-1; i >= 0; i-- { _ = m.removeLocked(rollbackCtx, added[i]) }
+			var rollbackErr error
+			for i := len(added)-1; i >= 0; i-- {
+				if removeErr := m.removeLocked(rollbackCtx, added[i]); removeErr != nil {
+					rollbackErr = errors.Join(rollbackErr, removeErr)
+				}
+			}
+			if rollbackErr != nil {
+				for key, oldPrefix := range m.current { next[key] = oldPrefix }
+				for _, addedPrefix := range added { next[addedPrefix.String()] = addedPrefix }
+				m.current = next
+				return errors.Join(fmt.Errorf("не удалось добавить маршрут %s: %w", prefix, err), fmt.Errorf("ошибка отката: %w", rollbackErr))
+			}
 			if len(m.current) == 0 { _ = m.removeRulesLocked(rollbackCtx) }
 			return fmt.Errorf("не удалось добавить маршрут %s: %w", prefix, err)
 		}
@@ -119,7 +130,12 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 					rollbackErr = errors.Join(rollbackErr, removeErr)
 				}
 			}
-			if rollbackErr != nil { return errors.Join(fmt.Errorf("не удалось удалить маршрут %s: %w", prefix, err), fmt.Errorf("ошибка отката: %w", rollbackErr)) }
+			if rollbackErr != nil {
+				for key, oldPrefix := range m.current { next[key] = oldPrefix }
+				for _, addedPrefix := range added { next[addedPrefix.String()] = addedPrefix }
+				m.current = next
+				return errors.Join(fmt.Errorf("не удалось удалить маршрут %s: %w", prefix, err), fmt.Errorf("ошибка отката: %w", rollbackErr))
+			}
 			return fmt.Errorf("не удалось удалить маршрут %s; исходный набор восстановлен: %w", prefix, err)
 		}
 		removed = append(removed, prefix)
