@@ -139,6 +139,6 @@ func TestAmneziaWGHeaderRangesCannotOverlap(t *testing.T) {
 }
 
 func TestAmneziaWGCustomPacketsCannotInjectUAPILines(t *testing.T) {
-	cfg := Config{Peers: []Peer{{Name:"edge"}}, AmneziaWG:&AWGParameters{I1:"<b 0x0102>\nprivate_key=bad"}}
+	cfg := Config{Peers: []Peer{{Name:"edge"}}, AmneziaWG:&AWGParameters{I1:"<b 0x0102>" + string([]byte{10}) + "private_key=bad"}}
 	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка перевода строки в I1") }
 }
