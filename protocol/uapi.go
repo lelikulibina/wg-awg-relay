@@ -47,6 +47,7 @@ func BuildUAPIConfig(cfg Config) (string, error) {
 		appendUAPI(&b, "private_key", key)
 	}
 	if cfg.ListenPort != 0 { appendUAPI(&b, "listen_port", strconv.Itoa(cfg.ListenPort)) }
+	if cfg.FwMark != 0 { appendUAPI(&b, "fwmark", strconv.FormatUint(uint64(cfg.FwMark), 10)) }
 	if awg := cfg.AmneziaWG; awg != nil {
 		appendUAPI(&b, "jc", strconv.Itoa(awg.JC))
 		appendUAPI(&b, "jmin", strconv.Itoa(awg.JMin))
