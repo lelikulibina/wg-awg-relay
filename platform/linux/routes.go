@@ -74,7 +74,8 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 	defer m.mu.Unlock()
 
 	var added, removed []netip.Prefix
-	for key, prefix := range sortedPrefixes(next) {
+	for _, entry := range sortedPrefixes(next) {
+		key, prefix := entry.key, entry.prefix
 		if _, exists := m.current[key]; exists { continue }
 		if err := m.addLocked(ctx, prefix); err != nil {
 			rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -84,7 +85,8 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 		}
 		added = append(added, prefix)
 	}
-	for key, prefix := range sortedPrefixes(m.current) {
+	for _, entry := range sortedPrefixes(m.current) {
+		key, prefix := entry.key, entry.prefix
 		if _, exists := next[key]; exists { continue }
 		if err := m.removeLocked(ctx, prefix); err != nil {
 			rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
