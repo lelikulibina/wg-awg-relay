@@ -135,3 +135,18 @@ func TestRouteManagerRejectsReservedRoutingTables(t *testing.T) {
 		}
 	}
 }
+
+func TestRouteManagerResetFlushesOnlyItsPolicyTableAndInterface(t *testing.T) {
+	runner := &fakeRunner{}
+	manager, err := NewRouteManager("awg0", runner)
+	if err != nil { t.Fatal(err) }
+	if err := manager.Add(context.Background(), netip.MustParsePrefix("10.0.0.0/8")); err != nil { t.Fatal(err) }
+	runner.commands = nil
+	if err := manager.Reset(context.Background()); err != nil { t.Fatal(err) }
+	if len(runner.commands) != 2 { t.Fatalf("ожидалось две команды очистки семейств: %#v", runner.commands) }
+	for _, call := range runner.commands {
+		joined := strings.Join(call, " ")
+		if !strings.Contains(joined, "route flush table 51820 dev awg0") { t.Fatalf("очищается не выделенная таблица: %s", joined) }
+	}
+	if len(manager.Snapshot()) != 0 { t.Fatal("Reset не очистил локальное состояние") }
+}
