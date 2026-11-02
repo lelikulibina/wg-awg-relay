@@ -147,3 +147,13 @@ func TestAmneziaWGHeaderRangesRequireProtectionKey(t *testing.T) {
 	cfg := Config{Peers: []Peer{{Name:"edge"}}, AmneziaWG:&AWGParameters{H1:"100-200"}}
 	if err := cfg.Validate(); err == nil { t.Fatal("ожидалась ошибка отсутствующего HeaderProtectionKey") }
 }
+
+func TestParseConfigRejectsUnknownFields(t *testing.T) {
+	_, err := ParseConfig([]byte(`{"peers":[],"listen_portt":51820}`))
+	if err == nil { t.Fatal("ожидалась ошибка неизвестного поля") }
+}
+
+func TestParseConfigRejectsTrailingJSON(t *testing.T) {
+	_, err := ParseConfig([]byte(`{"peers":[]} {"peers":[]}`))
+	if err == nil { t.Fatal("ожидалась ошибка лишнего JSON-значения") }
+}
