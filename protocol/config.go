@@ -99,6 +99,14 @@ func (c Config) Validate() error {
 	if c.ListenPort < 0 || c.ListenPort > 65535 {
 		return fmt.Errorf("порт прослушивания вне диапазона: %d", c.ListenPort)
 	}
+	if c.MTU < 0 || c.MTU > 65535 { return fmt.Errorf("MTU вне допустимого диапазона: %d", c.MTU) }
+	addresses := make(map[string]struct{}, len(c.Address))
+	for i, raw := range c.Address {
+		prefix, err := netip.ParsePrefix(raw)
+		if err != nil { return fmt.Errorf("address[%d]: некорректный префикс %q: %w", i, raw, err) }
+		if _, exists := addresses[prefix.String()]; exists { return fmt.Errorf("адрес интерфейса %q указан повторно", prefix) }
+		addresses[prefix.String()] = struct{}{}
+	}
 	if awg := c.AmneziaWG; awg != nil {
 		if awg.JC < 0 || awg.JC > 65535 || awg.JMin < 0 || awg.JMin > 65535 || awg.JMax < 0 || awg.JMax > 65535 || awg.S1 < 0 || awg.S1 > 65535 || awg.S2 < 0 || awg.S2 > 65535 || awg.S3 < 0 || awg.S3 > 65535 || awg.S4 < 0 || awg.S4 > 65535 {
 			return errors.New("числовые параметры AmneziaWG должны находиться в диапазоне uint16")
