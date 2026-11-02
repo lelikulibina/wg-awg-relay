@@ -65,7 +65,7 @@ func validate(args []string) error {
 	if err != nil { return err }
 	routes, err := cfg.EffectiveRoutes()
 	if err != nil { return err }
-	fmt.Printf("Конфигурация корректна. Эффективных маршрутов: %d\n", len(routes))
+	fmt.Printf("Структура конфигурации корректна. Эффективных маршрутов: %d\n", len(routes))
 	return nil
 }
 
