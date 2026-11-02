@@ -34,9 +34,9 @@ func (c UAPIClient) Get(ctx context.Context) (string, error) {
 	if err != nil { return "", fmt.Errorf("не удалось подключиться к UAPI-сокету %q: %w", c.SocketPath, err) }
 	defer conn.Close()
 	if err := ctx.Err(); err != nil { return "", err }
+	if err := conn.SetDeadline(deadlineFromContext(ctx)); err != nil { return "", err }
 	stopCancel := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })
 	defer stopCancel()
-	if err := conn.SetDeadline(deadlineFromContext(ctx)); err != nil { return "", err }
 	if _, err := conn.Write([]byte("get=1\n\n")); err != nil { return "", fmt.Errorf("ошибка отправки UAPI get: %w", err) }
 	var b strings.Builder
 	reader := bufio.NewReader(conn)
