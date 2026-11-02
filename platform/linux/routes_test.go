@@ -73,7 +73,7 @@ func TestRouteManagerRollsBackAddedRoutesOnFailure(t *testing.T) {
 	})
 	if err == nil { t.Fatal("ожидалась ошибка iproute2") }
 	if len(manager.Snapshot()) != 0 { t.Fatal("локальный набор изменился после неудачной операции") }
-	if len(runner.commands) != 5 { t.Fatalf("ожидались две policy rules, две попытки добавления и откат, команды: %#v", runner.commands) }
+	if len(runner.commands) != 7 { t.Fatalf("ожидались две policy rules, две попытки добавления, откат маршрута и удаление созданных правил, команды: %#v", runner.commands) }
 }
 
 func TestRouteManagerRejectsInvalidInterface(t *testing.T) {
