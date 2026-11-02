@@ -91,3 +91,30 @@ go vet ./...
 Для userspace-режима `platform/linux.DeviceProcess` запускает `amneziawg-go -f <interface>`, ждёт готовности UAPI-сокета `/var/run/amneziawg/<interface>.sock` и останавливает процесс через штатный сигнал. Бинарный файл AmneziaWG устанавливается отдельно; проект не встраивает и не форкает криптографический движок.
 
 `platform/linux.LinkManager` настраивает адреса интерфейса, MTU и поднимает TUN через `ip link` / `ip address`. Перед выполнением команд он проверяет весь набор адресов, чтобы не оставить интерфейс частично сконфигурированным из-за синтаксической ошибки в последнем адресе.
+
+## Запуск программы
+
+Сборка и проверка конфигурации:
+
+```sh
+go test -race ./...
+go vet ./...
+go build -o wg-awg-relay ./cmd/wg-awg-relay
+./wg-awg-relay validate -config examples/config.json
+```
+
+Для запуска на Linux нужны права администратора, `amneziawg-go`, `iproute2` и `nftables` (последний — если в конфигурации включено `"nat": true`):
+
+```sh
+sudo ./wg-awg-relay run -config /etc/wg-awg-relay/config.json -interface awg0
+```
+
+Во время работы доступны команды управления через Unix-сокет:
+
+```sh
+sudo ./wg-awg-relay route add -prefix 10.30.0.0/16 -peer uplink-a -priority 10
+sudo ./wg-awg-relay route remove -prefix 10.30.0.0/16 -peer uplink-a
+sudo ./wg-awg-relay route list
+```
+
+По умолчанию управляющий сокет находится в `/run/wg-awg-relay/control.sock` и доступен только владельцу файла (права `0600`). В policy routing используется `fwmark` (по умолчанию `51820`) и отдельная таблица маршрутизации с тем же номером. Это позволяет направлять обычный трафик в туннель, не отправляя UDP-пакеты самого AmneziaWG обратно в этот же туннель.
