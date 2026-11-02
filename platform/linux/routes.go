@@ -131,7 +131,6 @@ func (m *RouteManager) Apply(ctx context.Context, prefixes []netip.Prefix) error
 				uncertain := make(map[string]netip.Prefix, len(m.current)+len(added))
 				for key, oldPrefix := range m.current { uncertain[key] = oldPrefix }
 				for _, addedPrefix := range added { uncertain[addedPrefix.String()] = addedPrefix }
-				uncertain[prefix.String()] = prefix
 				m.current, m.uncertain = uncertain, true
 				return errors.Join(fmt.Errorf("не удалось добавить маршрут %s: %w", prefix, err), fmt.Errorf("ошибка отката: %w", rollbackErr))
 			}
